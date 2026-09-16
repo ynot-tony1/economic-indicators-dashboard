@@ -72,6 +72,14 @@ User sent a screenshot showing the live site: too bright, not centered, generic-
 - Rebuilt, verified via `next build` + `next start` that `<html>` carries the `dark` class and the compiled CSS resolves `--background:#0a0a0a` / `--card:#171717`, and that no `-mx-6` bleed remains anywhere in the rendered output.
 - Redeployed to production.
 
+## Domain alias (2026-09-16)
+
+- Requested `global-economic-indicators.vercel.app` — unavailable (`.vercel.app` subdomains are global/first-come-first-served across all Vercel users, not just this project). User picked `economic-indicator-comparison.vercel.app` instead; assigned via `vercel alias set`.
+- Discovered the project's Deployment Protection (`ssoProtection.deploymentType: "all_except_custom_domains"`) only exempted the original auto-generated production domain from the Vercel SSO login wall — any additional alias, even another `.vercel.app` one, was gated behind Vercel auth. Confirmed with the user they wanted it fully public (consistent with how the site had worked so far) and disabled SSO protection project-wide: `vercel project protection disable economic-indicators-dashboard --sso`.
+- Both domains now serve the live dashboard with no auth wall:
+  - https://economic-indicators-dashboard.vercel.app
+  - https://economic-indicator-comparison.vercel.app
+
 ## Remaining / future work
 
 - Nothing blocking — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
