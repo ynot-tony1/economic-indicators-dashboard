@@ -9,6 +9,15 @@ export function formatValue(value: string | null, unit: string | null): string {
   return shortUnit ? `${formatted} ${shortUnit}` : formatted;
 }
 
+export function formatNumber(value: string | null): string {
+  if (value === null || value === undefined) return "—";
+  const num = Number(value);
+  if (Number.isNaN(num)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: Math.abs(num) < 10 ? 2 : Math.abs(num) < 1000 ? 1 : 0,
+  }).format(num);
+}
+
 export function formatDelta(last: string | null, previous: string | null): {
   direction: "up" | "down" | "flat" | "none";
   label: string;
