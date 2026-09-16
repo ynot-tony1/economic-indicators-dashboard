@@ -1,0 +1,52 @@
+name: Nightly indicator scrape
+
+# GitHub Actions cron is UTC-only and has no DST awareness, but we want this to
+# run at midnight *Europe/London* time year-round (BST in summer, GMT in
+# winter). We schedule both UTC times that midnight London can fall on, then
+# use a guard step to skip whichever firing doesn't actually land at local
+# midnight — so this self-corrects across the clock change with no manual
+# updates twice a year.
+on:
+  schedule:
+    - cron: "0 0 * * *" # 00:00 UTC -> midnight GMT (winter)
+    - cron: "0 23 * * *" # 23:00 UTC -> midnight BST (summer, previous UTC day)
+  workflow_dispatch: {}
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check it's actually midnight in Europe/London
+        id: check
+        run: |
+          HOUR=$(TZ=Europe/London date +%H)
+          echo "Local Europe/London hour: $HOUR"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HOUR" != "00" ]; then
+            echo "Not local midnight yet (this is the other DST cron firing) — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.skip != 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.skip != 'true'
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: scraper
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        if: steps.check.outputs.skip != 'true'
+        working-directory: scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scrape.py
