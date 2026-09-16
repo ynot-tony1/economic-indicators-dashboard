@@ -9,6 +9,10 @@ export const COUNTRY_COLORS: Record<string, { light: string; dark: string }> = {
   ireland: { light: "#008300", dark: "#008300" }, // green
   kenya: { light: "#e34948", dark: "#e66767" }, // red
   "south-africa": { light: "#1baf7a", dark: "#199e70" }, // aqua
+  italy: { light: "#0891b2", dark: "#22a5c4" }, // cyan
+  zimbabwe: { light: "#86198f", dark: "#c026d3" }, // fuchsia
+  australia: { light: "#4f46e5", dark: "#6366f1" }, // indigo
+  singapore: { light: "#92400e", dark: "#b45309" }, // brown
 };
 
 export const DEFAULT_SERIES_COLOR = { light: "#2a78d6", dark: "#3987e5" };

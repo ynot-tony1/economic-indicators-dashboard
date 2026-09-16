@@ -40,8 +40,13 @@ export function formatPeriod(rawPeriod: string | null, periodDate: string | null
 }
 
 export function formatScrapedAt(scrapedAt: string): string {
-  return new Date(scrapedAt).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
+  return new Date(scrapedAt).toLocaleString("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
   });
 }

@@ -20,6 +20,10 @@ const KNOWN_COUNTRIES = [
   "ireland",
   "kenya",
   "south-africa",
+  "italy",
+  "zimbabwe",
+  "australia",
+  "singapore",
 ];
 
 export function generateStaticParams() {

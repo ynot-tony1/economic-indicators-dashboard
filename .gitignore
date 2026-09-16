@@ -11,3 +11,6 @@ scraper/venv/
 
 # OS
 .DS_Store
+
+# Claude Code harness state
+.claude/

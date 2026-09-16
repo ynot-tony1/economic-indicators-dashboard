@@ -47,5 +47,9 @@ INSERT INTO countries (code, slug, name, flag_emoji, sort_order) VALUES
   ('DE', 'germany', 'Germany', '🇩🇪', 5),
   ('IE', 'ireland', 'Ireland', '🇮🇪', 6),
   ('KE', 'kenya', 'Kenya', '🇰🇪', 7),
-  ('ZA', 'south-africa', 'South Africa', '🇿🇦', 8)
+  ('ZA', 'south-africa', 'South Africa', '🇿🇦', 8),
+  ('IT', 'italy', 'Italy', '🇮🇹', 9),
+  ('ZW', 'zimbabwe', 'Zimbabwe', '🇿🇼', 10),
+  ('AU', 'australia', 'Australia', '🇦🇺', 11),
+  ('SG', 'singapore', 'Singapore', '🇸🇬', 12)
 ON CONFLICT (code) DO NOTHING;
