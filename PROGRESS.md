@@ -61,6 +61,17 @@ server-side HTML (no JS needed to scrape). Structure:
 - Verified with `next build` (clean) and `next dev` + curl against real seeded data on all 3 country pages + a detail page — no runtime errors
 - Redeployed to production: https://economic-indicators-dashboard.vercel.app
 
+## Dark theme + centering/font fix (2026-09-16, after user screenshot feedback)
+
+User sent a screenshot showing the live site: too bright, not centered, generic-looking font. Root causes found and fixed:
+
+- **Dark mode was never actually active.** `.dark { ... }` variables existed in `globals.css` but nothing ever added a `dark` class anywhere — the site always rendered light regardless of OS setting, despite PROGRESS.md previously (incorrectly) claiming it followed system preference. Fixed by hardcoding `dark` on `<html>` in `layout.tsx` — this is a permanently-dark dashboard now (matches the Bloomberg/TradingView convention for financial data tools), no light/dark toggle.
+- **Real centering bug**, not just taste: `CategoryQuickNav` used a `-mx-6` negative-margin "bleed" trick designed to cancel a `max-w-6xl px-6` parent's padding — but it had been placed in a plain unconstrained `<div>` outside that container, so it bled to the full viewport edge (visibly cut off at the left in the screenshot) while the header/cards above/below stayed correctly centered at max-w-6xl. Fixed by nesting the whole `/[country]` page in one consistent `mx-auto max-w-6xl px-6` wrapper and removing the bleed hack entirely.
+- **Fonts were silently falling back to a generic system font.** The Tailwind `@theme inline` block expected a CSS variable literally named `--font-sans`, but `layout.tsx` was defining Geist under the name `--font-geist-sans` — a mismatch, so the custom font was never actually applied via the `font-sans` utility. Replaced Geist/Geist Mono with **Space Grotesk** (UI/headings) and **JetBrains Mono** (numeric/tabular data — a deliberate choice for a data dashboard, not decorative: financial dashboards conventionally use monospace/tabular figures for scannable number alignment), and fixed the variable naming so they actually apply.
+- Toned down the per-card country-accent treatment (was a bright 2px border repeated on every single card, reads as loud when there are dozens per category) to a subtle hover-only border tint via `color-mix`; kept the accent as a deliberate single touch on the range-gauge dot and the detail page's side rule instead.
+- Rebuilt, verified via `next build` + `next start` that `<html>` carries the `dark` class and the compiled CSS resolves `--background:#0a0a0a` / `--card:#171717`, and that no `-mx-6` bleed remains anywhere in the rendered output.
+- Redeployed to production.
+
 ## Remaining / future work
 
 - Nothing blocking — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
