@@ -51,6 +51,16 @@ server-side HTML (no JS needed to scrape). Structure:
 - [x] Verified locally with `next dev` + curl against real data (all 3 country pages + a detail page), no errors in dev log
 - [x] Deployed to Vercel production: **https://economic-indicators-dashboard.vercel.app** — confirmed publicly reachable, rendering real data, no auth wall
 
+## Visual polish pass (2026-09-16)
+
+- Sticky blurred header with a small "EI" mark; sticky per-category quick-nav (pill links with counts) under the country header — needed since the US page alone has 396 indicators across 12 categories to scroll through
+- `RangeGauge` component: small marker-on-track showing where "Last" sits between TE's own Lowest/Highest, used on both cards and the detail page
+- Country identity carried as a consistent accent color (the validated per-country palette from earlier) onto card top-borders, the detail page's left rule, and the category badge — not just chart lines
+- Loading skeletons for both route segments (`loading.tsx`)
+- Ran the `frontend-design` skill's audit against generic "AI-generated" chrome tells and fixed what it flagged: removed middle-dot-joined meta strings (replaced with either a real hairline divider or a colored category badge) and a unicode arrow (↗) appended to link text (replaced with the same `ExternalLink` icon used elsewhere, for consistency)
+- Verified with `next build` (clean) and `next dev` + curl against real seeded data on all 3 country pages + a detail page — no runtime errors
+- Redeployed to production: https://economic-indicators-dashboard.vercel.app
+
 ## Remaining / future work
 
 - Nothing blocking — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
