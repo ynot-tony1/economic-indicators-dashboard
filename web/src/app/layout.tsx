@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s · Economic Indicators",
   },
   description:
-    "Nightly-refreshed economic indicators for the US, UK, Japan, France, Germany, Ireland, Kenya, and South Africa, sourced from TradingEconomics.",
+    "Nightly-refreshed economic indicators for the US, UK, Japan, France, Germany, Ireland, Kenya, South Africa, Italy, Zimbabwe, Australia, and Singapore, sourced from TradingEconomics.",
 };
 
 export const viewport = {
