@@ -37,6 +37,11 @@ COUNTRIES = [
     {"code": "US", "slug": "united-states"},
     {"code": "GB", "slug": "united-kingdom"},
     {"code": "JP", "slug": "japan"},
+    {"code": "FR", "slug": "france"},
+    {"code": "DE", "slug": "germany"},
+    {"code": "IE", "slug": "ireland"},
+    {"code": "KE", "slug": "kenya"},
+    {"code": "ZA", "slug": "south-africa"},
 ]
 
 MONTH_ABBR = {

@@ -42,5 +42,10 @@ CREATE INDEX IF NOT EXISTS indicator_snapshots_by_indicator
 INSERT INTO countries (code, slug, name, flag_emoji, sort_order) VALUES
   ('US', 'united-states', 'United States', '🇺🇸', 1),
   ('GB', 'united-kingdom', 'United Kingdom', '🇬🇧', 2),
-  ('JP', 'japan', 'Japan', '🇯🇵', 3)
+  ('JP', 'japan', 'Japan', '🇯🇵', 3),
+  ('FR', 'france', 'France', '🇫🇷', 4),
+  ('DE', 'germany', 'Germany', '🇩🇪', 5),
+  ('IE', 'ireland', 'Ireland', '🇮🇪', 6),
+  ('KE', 'kenya', 'Kenya', '🇰🇪', 7),
+  ('ZA', 'south-africa', 'South Africa', '🇿🇦', 8)
 ON CONFLICT (code) DO NOTHING;

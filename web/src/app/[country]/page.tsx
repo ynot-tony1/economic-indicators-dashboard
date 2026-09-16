@@ -11,7 +11,16 @@ import { formatScrapedAt } from "@/lib/format";
 
 export const revalidate = 3600;
 
-const KNOWN_COUNTRIES = ["united-states", "united-kingdom", "japan"];
+const KNOWN_COUNTRIES = [
+  "united-states",
+  "united-kingdom",
+  "japan",
+  "france",
+  "germany",
+  "ireland",
+  "kenya",
+  "south-africa",
+];
 
 export function generateStaticParams() {
   return KNOWN_COUNTRIES.map((country) => ({ country }));
