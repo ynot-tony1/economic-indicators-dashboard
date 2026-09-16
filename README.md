@@ -1,7 +1,8 @@
 # Economic Indicators Dashboard
 
 Nightly-refreshed dashboard of economic indicators for the United States, United
-Kingdom, and Japan, sourced from [TradingEconomics](https://tradingeconomics.com/indicators).
+Kingdom, Japan, France, Germany, Ireland, Kenya, and South Africa, sourced from
+[TradingEconomics](https://tradingeconomics.com/indicators).
 
 ## Architecture
 
@@ -31,7 +32,7 @@ postgresql://<user>:<password>@<host>:26257/defaultdb?sslmode=verify-full&option
 psql "$DATABASE_URL" -f db/schema.sql
 ```
 
-This creates the tables and seeds the three countries (US, GB, JP).
+This creates the tables and seeds the eight tracked countries (US, GB, JP, FR, DE, IE, KE, ZA).
 
 ### 3. Set `DATABASE_URL` in three places
 

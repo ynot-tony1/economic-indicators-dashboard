@@ -21,7 +21,8 @@ export const metadata: Metadata = {
     default: "Economic Indicators Dashboard",
     template: "%s · Economic Indicators",
   },
-  description: "Nightly-refreshed economic indicators for the US, UK, and Japan, sourced from TradingEconomics.",
+  description:
+    "Nightly-refreshed economic indicators for the US, UK, Japan, France, Germany, Ireland, Kenya, and South Africa, sourced from TradingEconomics.",
 };
 
 export const viewport = {

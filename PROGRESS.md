@@ -80,6 +80,16 @@ User sent a screenshot showing the live site: too bright, not centered, generic-
   - https://economic-indicators-dashboard.vercel.app
   - https://economic-indicator-comparison.vercel.app
 
+## Added 5 more countries (2026-09-16)
+
+User asked to add France, Germany, Republic of Ireland, Kenya, and South Africa (site now tracks 8 countries total).
+
+- Verified TradingEconomics slugs before wiring anything up: `france`, `germany`, `kenya`, `south-africa` are straightforward. **Ireland is `ireland`, not `republic-of-ireland`** — the latter 200s but returns a near-empty 2KB page; `/ireland/indicators` is TE's real, populated page (its own page title is "Ireland Indicators..."). Using `ireland` as the slug, "Ireland" as the display name.
+- Extended in every place a country is registered: `db/schema.sql` seed data, `scraper/scrape.py` `COUNTRIES` list, `web/src/app/[country]/page.tsx` `KNOWN_COUNTRIES` (for `generateStaticParams`), `web/src/lib/colors.ts` `COUNTRY_COLORS`.
+- New countries inserted directly into the live CockroachDB (same seed data as schema.sql, since schema was already applied once) and the scraper run for real — 1,418 indicators now tracked across all 8 countries (France 163, Germany 176, Ireland 136, Kenya 69, South Africa 117 joining the existing US/UK/Japan totals).
+- **Color assignment**: used all 8 slots of the dataviz skill's validated categorical palette (previously only 3 were in use). Ran `validate_palette.js --pairs all` on the full 8-set — it FAILS the strict all-pairs CVD/normal-vision floor, which the palette doc itself says is expected and unavoidable past 4 simultaneous categorical slots ("no ordering can" pass beyond that). This is accepted rather than worked around, because every place a country color appears in this app (nav tabs, card borders, chart lines) is always paired with the country's flag emoji and name as direct text — the palette's own required mitigation for the 6–8 floor band ("secondary encoding: direct labels") is already structurally present everywhere, so color is never the sole identifier. Assignments leaned thematic where it was free (Ireland=green, Germany=gold, Kenya=red — all from the country's own flag) since nothing else constrained the choice.
+- Rebuilt (`next build`, all 8 `/[country]` routes statically generated), spot-checked all 5 new country pages with `next dev` + curl (200s, real content, no errors), then deployed to production and re-verified both live domains serve all 5 new countries.
+
 ## Remaining / future work
 
 - Nothing blocking — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
