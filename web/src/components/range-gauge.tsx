@@ -30,7 +30,7 @@ export function RangeGauge({
           style={{ left: `${pct}%` }}
         />
       </div>
-      <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
+      <div className="flex justify-between font-mono text-[10px] tabular-nums text-muted-foreground">
         <span>{formatNumber(low)}</span>
         <span>{formatNumber(high)}</span>
       </div>

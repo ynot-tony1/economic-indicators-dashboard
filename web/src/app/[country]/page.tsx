@@ -49,8 +49,8 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
   );
 
   return (
-    <div>
-      <div className="mx-auto max-w-6xl px-6 pt-8">
+    <div className="mx-auto max-w-6xl px-6">
+      <div className="pt-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
@@ -60,7 +60,7 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
               {activeCountry.name}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              <span>
+              <span className="font-mono tabular-nums">
                 {rows.length} indicators, {categories.length} categories
               </span>
               {latestScrapedAt && (
@@ -82,12 +82,12 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
           <div className="mt-6">
             <CategoryQuickNav categories={categories} counts={counts} />
           </div>
-          <div className="mx-auto max-w-6xl space-y-12 px-6 py-8">
+          <div className="space-y-12 py-8">
             {categories.map((category) => (
               <section key={category} id={category} className="scroll-mt-28">
                 <div className="mb-4 flex items-baseline gap-2 border-b pb-2">
                   <h2 className="text-base font-semibold tracking-tight">{categoryLabel(category)}</h2>
-                  <span className="text-xs tabular-nums text-muted-foreground">{counts[category]}</span>
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">{counts[category]}</span>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {rows

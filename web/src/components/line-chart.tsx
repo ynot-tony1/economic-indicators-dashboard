@@ -57,7 +57,7 @@ export function LineChart({
   if (points.length === 1) {
     return (
       <div className="flex h-60 flex-col items-center justify-center gap-2 rounded-lg border border-dashed">
-        <span className="text-3xl font-semibold tabular-nums">
+        <span className="font-mono text-3xl font-medium tabular-nums">
           {points[0].value}
           {unit ? <span className="ml-1 text-base text-muted-foreground">{unit}</span> : null}
         </span>
@@ -120,7 +120,15 @@ export function LineChart({
               stroke="var(--viz-grid)"
               strokeWidth={1}
             />
-            <text x={MARGIN.left - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={10} fill="var(--viz-ink-muted)">
+            <text
+              x={MARGIN.left - 8}
+              y={y}
+              textAnchor="end"
+              dominantBaseline="middle"
+              fontSize={10}
+              fill="var(--viz-ink-muted)"
+              className="font-mono"
+            >
               {formatAxisValue(gridLabels[i])}
             </text>
           </g>
@@ -160,7 +168,7 @@ export function LineChart({
           className="pointer-events-none absolute top-2 -translate-x-1/2 rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md"
           style={{ left: `${(hoverX / VB_W) * 100}%` }}
         >
-          <div className="font-medium tabular-nums">
+          <div className="font-mono font-medium tabular-nums">
             {hovered.value}
             {unit ? ` ${unit}` : ""}
           </div>

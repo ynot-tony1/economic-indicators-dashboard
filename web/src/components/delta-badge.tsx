@@ -14,7 +14,7 @@ export function DeltaBadge({ last, previous }: { last: string | null; previous: 
         : "text-muted-foreground";
 
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium tabular-nums ${colorClass}`}>
+    <span className={`inline-flex items-center gap-0.5 font-mono text-xs font-medium tabular-nums ${colorClass}`}>
       <Icon className="size-3" aria-hidden />
       {label}
     </span>

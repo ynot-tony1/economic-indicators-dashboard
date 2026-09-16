@@ -113,7 +113,7 @@ function Stat({ label, value, emphasis }: { label: string; value: string; emphas
   return (
     <div className={`rounded-lg border p-3 ${emphasis ? "bg-muted/50" : ""}`}>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 font-mono text-lg font-medium tabular-nums">{value}</div>
     </div>
   );
 }
