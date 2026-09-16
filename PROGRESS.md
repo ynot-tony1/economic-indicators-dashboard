@@ -40,15 +40,21 @@ server-side HTML (no JS needed to scrape). Structure:
 - [x] GitHub Actions workflow file — schedules both BST/GMT UTC-equivalents of midnight Europe/London and skips whichever firing isn't actually local midnight, so it self-corrects across the DST clock change (user explicitly asked for London local midnight, not fixed UTC)
 - [x] README with setup instructions
 - [x] `.gitignore` (root, for scraper/env), `.env.example` (web + scraper)
-- [ ] git init at repo root + first commit (no Claude co-author trailer)
-- [ ] GitHub repo created via `gh repo create` + push
-- [ ] Vercel project linked (root directory `web/`)
-- [ ] CockroachDB `DATABASE_URL` wired into: `web/.env.local` (local), GitHub Actions secret (scraper), Vercel env vars (production) — **waiting on user to paste the connection string**
-- [ ] Run `db/schema.sql` against the live cluster
-- [ ] First scraper run (manual, to seed data) + verify dashboard renders real data
-- [ ] Deploy to Vercel
+- [x] git init at repo root + first commit (no Claude co-author trailer; author is `ynot-tony1 <tonycowan56@gmail.com>`)
+- [x] GitHub repo created: https://github.com/ynot-tony1/economic-indicators-dashboard (private) + pushed
+- [x] Vercel project linked: `tony-f5c4/economic-indicators-dashboard`, root directory `web/`; `vercel git connect` wired for push-to-deploy (needed a CLI upgrade — `npm i -g vercel@latest` — the old 59.1.4 CLI couldn't find the git repo from the `web/` subdirectory, 59.19.0 fixed it)
+- [x] CockroachDB `DATABASE_URL` wired into: `web/.env.local` (local, gitignored), GitHub Actions repo secret, Vercel env vars (production + preview + development)
+  - **Safety note**: the user initially pasted the real connection string into `web/.env.example` (git-tracked). Caught before it was committed with real values — reverted that file to a placeholder and moved the real string to `.env.local` instead. Nothing with real credentials was ever pushed.
+  - The CockroachDB console's displayed connection string wrapped the password in literal `<...>` — those angle brackets are a display artifact, not part of the password; had to strip them for the URI to parse/connect.
+- [x] Ran `db/schema.sql` against the live cluster (via a one-off `pg` script) — tables created, 3 countries seeded
+- [x] First scraper run (real, not dry-run) — 396 US / 193 UK / 168 Japan indicators written as the first snapshot for each
+- [x] Verified locally with `next dev` + curl against real data (all 3 country pages + a detail page), no errors in dev log
+- [x] Deployed to Vercel production: **https://economic-indicators-dashboard.vercel.app** — confirmed publicly reachable, rendering real data, no auth wall
 
-## Open items / things to revisit
+## Remaining / future work
 
+- Nothing blocking — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
 - No dark-mode toggle UI built (not requested) — dark mode follows OS `prefers-color-scheme` automatically via the existing shadcn CSS variable setup.
-- `next.config.ts` does not have Cache Components (`cacheComponents: true`) enabled — using the standard/previous caching model, so pages use plain `async` Server Components with `export const revalidate` for ISR rather than `use cache` + Suspense-wrapped params.
+- `next.config.ts` does not have Cache Components (`cacheComponents: true`) enabled — using the standard/previous caching model, so pages use plain `async` Server Components with `export const revalidate` (1hr) for ISR rather than `use cache` + Suspense-wrapped params.
+- Dashboard cards show TE's own Last/Previous/Highest/Lowest rather than a sparkline (would need N+1 history queries with little payoff on day one). Once a few weeks of nightly history accumulate, revisit whether a lightweight sparkline on cards is worth adding.
+- Only one snapshot exists per indicator right now, so every detail-page chart currently shows the "first snapshot" single-point state — this is expected and will fill in as the nightly job runs.
