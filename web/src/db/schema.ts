@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   integer,
+  smallint,
   timestamp,
   date,
   numeric,
@@ -52,3 +53,31 @@ export const indicatorSnapshots = pgTable(
   },
   (table) => [uniqueIndex("snapshots_indicator_scraped_at").on(table.indicatorId, table.scrapedAt)],
 );
+
+export const countryTraits = pgTable(
+  "country_traits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    countryId: uuid("country_id")
+      .notNull()
+      .references(() => countries.id),
+    trait: text("trait").notNull(),
+    score: smallint("score").notNull(),
+    summary: text("summary").notNull(),
+    model: text("model").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("country_traits_country_trait").on(table.countryId, table.trait)],
+);
+
+export const countryPersonas = pgTable("country_personas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  countryId: uuid("country_id")
+    .notNull()
+    .unique()
+    .references(() => countries.id),
+  archetypeTitle: text("archetype_title").notNull(),
+  narrative: text("narrative").notNull(),
+  model: text("model").notNull(),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+});

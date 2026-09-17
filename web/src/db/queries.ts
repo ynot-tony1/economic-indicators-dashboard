@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "./client";
-import { countries, indicatorSnapshots, indicators } from "./schema";
+import { countries, countryPersonas, countryTraits, indicatorSnapshots, indicators } from "./schema";
+import { sortTraits, type TraitSlug } from "@/lib/traits";
 
 export type LatestIndicatorRow = {
   id: string;
@@ -120,4 +121,46 @@ export async function getIndicatorDetail(
     .orderBy(asc(indicatorSnapshots.scrapedAt));
 
   return { indicator, history: history as unknown as SnapshotPoint[] };
+}
+
+export type CountryTraitRow = {
+  trait: TraitSlug;
+  score: number;
+  summary: string;
+};
+
+export type CountryPersona = {
+  archetypeTitle: string;
+  narrative: string;
+  generatedAt: Date;
+};
+
+export async function getCountryPersonality(
+  countrySlug: string,
+): Promise<{ traits: CountryTraitRow[]; persona: CountryPersona | null } | null> {
+  if (!db) return null;
+
+  const country = await getCountryBySlug(countrySlug);
+  if (!country) return null;
+
+  const [traitRows, personaRows] = await Promise.all([
+    db
+      .select({ trait: countryTraits.trait, score: countryTraits.score, summary: countryTraits.summary })
+      .from(countryTraits)
+      .where(eq(countryTraits.countryId, country.id)),
+    db
+      .select({
+        archetypeTitle: countryPersonas.archetypeTitle,
+        narrative: countryPersonas.narrative,
+        generatedAt: countryPersonas.generatedAt,
+      })
+      .from(countryPersonas)
+      .where(eq(countryPersonas.countryId, country.id))
+      .limit(1),
+  ]);
+
+  return {
+    traits: sortTraits(traitRows as CountryTraitRow[]),
+    persona: (personaRows[0] as CountryPersona | undefined) ?? null,
+  };
 }

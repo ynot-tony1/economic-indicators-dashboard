@@ -39,7 +39,7 @@ export function formatPeriod(rawPeriod: string | null, periodDate: string | null
   return "—";
 }
 
-export function formatScrapedAt(scrapedAt: string): string {
+export function formatScrapedAt(scrapedAt: string | Date): string {
   return new Date(scrapedAt).toLocaleString("en-GB", {
     timeZone: "Europe/London",
     day: "numeric",

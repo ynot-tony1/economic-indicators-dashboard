@@ -15,7 +15,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Check it's actually midnight in Europe/London
         id: check
@@ -50,3 +50,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scrape.py
+
+      - name: Generate market personalities
+        if: steps.check.outputs.skip != 'true'
+        working-directory: scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python insights.py

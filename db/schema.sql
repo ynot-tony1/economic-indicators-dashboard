@@ -39,6 +39,33 @@ CREATE TABLE IF NOT EXISTS indicator_snapshots (
 CREATE INDEX IF NOT EXISTS indicator_snapshots_by_indicator
   ON indicator_snapshots (indicator_id, scraped_at DESC);
 
+-- "Market Personality": each country scored 1-5 on 5 bipolar personality
+-- traits (see scraper/insights.py TRAITS), generated nightly by an LLM from
+-- that night's scraped indicators. Score 5 = pole_high, 1 = pole_low (the
+-- pole labels themselves live in code, not the DB, so wording stays fixed).
+-- Only the latest generation is kept per (country, trait).
+CREATE TABLE IF NOT EXISTS country_traits (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  country_id    UUID NOT NULL REFERENCES countries(id),
+  trait         TEXT NOT NULL,        -- 'assertiveness', 'composure', 'drive', 'discipline', 'independence'
+  score         INT2 NOT NULL CHECK (score BETWEEN 1 AND 5),
+  summary       TEXT NOT NULL,        -- one-sentence, number-grounded explanation
+  model         TEXT NOT NULL,
+  generated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (country_id, trait)
+);
+
+-- The synthesized archetype for a country, woven from its 5 trait scores.
+-- One row per country, replaced each night.
+CREATE TABLE IF NOT EXISTS country_personas (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  country_id        UUID NOT NULL UNIQUE REFERENCES countries(id),
+  archetype_title   TEXT NOT NULL,    -- e.g. 'The Disciplined Powerhouse'
+  narrative         TEXT NOT NULL,    -- 2-3 sentence character sketch
+  model             TEXT NOT NULL,
+  generated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 INSERT INTO countries (code, slug, name, flag_emoji, sort_order) VALUES
   ('US', 'united-states', 'United States', '🇺🇸', 1),
   ('GB', 'united-kingdom', 'United Kingdom', '🇬🇧', 2),

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCountries, getCountryBySlug, getLatestIndicators } from "@/db/queries";
 import { isDbConfigured } from "@/db/client";
 import { CountryNav } from "@/components/country-nav";
+import { SectionTabs } from "@/components/section-tabs";
 import { CategoryQuickNav } from "@/components/category-quick-nav";
 import { IndicatorCard } from "@/components/indicator-card";
 import { DbNotConfigured, EmptyState } from "@/components/state-messages";
@@ -86,6 +87,7 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
           </div>
           <CountryNav countries={countries} activeSlug={country} />
         </div>
+        <SectionTabs countrySlug={country} active="overview" />
       </div>
 
       {rows.length === 0 ? (
