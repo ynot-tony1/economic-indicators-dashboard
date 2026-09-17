@@ -35,7 +35,7 @@ export default async function Home() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-16">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Economic Indicators</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Market Personalities</h1>
         <p className="mt-3 text-muted-foreground">
           Nightly-refreshed indicators and market personalities for {countries.length} countries, sourced from
           TradingEconomics.
@@ -52,7 +52,7 @@ export default async function Home() {
             {featured.map((c) => (
               <Link
                 key={c.slug}
-                href={`/${c.slug}`}
+                href={`/${c.slug}/personality`}
                 className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2.5 text-sm transition-colors hover:border-foreground/30"
               >
                 <span className="text-lg leading-none" aria-hidden>
@@ -74,7 +74,7 @@ export default async function Home() {
             {countries.map((c) => (
               <Link
                 key={c.slug}
-                href={`/${c.slug}`}
+                href={`/${c.slug}/personality`}
                 className="flex items-center gap-2 break-inside-avoid py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 <span aria-hidden>{c.flagEmoji}</span>

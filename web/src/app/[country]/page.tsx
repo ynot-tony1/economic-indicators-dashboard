@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getCountries, getCountryBySlug, getLatestIndicators } from "@/db/queries";
 import { isDbConfigured } from "@/db/client";
 import { CountrySelect } from "@/components/country-select";
 import { SectionTabs } from "@/components/section-tabs";
-import { CategoryQuickNav } from "@/components/category-quick-nav";
-import { IndicatorCard } from "@/components/indicator-card";
+import { IndicatorCategoryBrowser } from "@/components/indicator-category-browser";
 import { DbNotConfigured, EmptyState } from "@/components/state-messages";
-import { categoryLabel, sortCategories } from "@/lib/categories";
+import { Skeleton } from "@/components/ui/skeleton";
+import { sortCategories } from "@/lib/categories";
 import { formatScrapedAt } from "@/lib/format";
 
 export const revalidate = 3600;
@@ -98,29 +99,23 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
       {rows.length === 0 ? (
         <EmptyState />
       ) : (
-        <>
-          <div className="mt-6">
-            <CategoryQuickNav categories={categories} counts={counts} />
-          </div>
-          <div className="space-y-12 py-8">
-            {categories.map((category) => (
-              <section key={category} id={category} className="scroll-mt-28">
-                <div className="mb-4 flex items-baseline gap-2 border-b pb-2">
-                  <h2 className="text-base font-semibold tracking-tight">{categoryLabel(category)}</h2>
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground">{counts[category]}</span>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {rows
-                    .filter((r) => r.category === category)
-                    .map((row) => (
-                      <IndicatorCard key={row.id} countrySlug={country} row={row} />
-                    ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </>
+        <Suspense fallback={<BrowserFallback />}>
+          <IndicatorCategoryBrowser countrySlug={country} rows={rows} categories={categories} counts={counts} />
+        </Suspense>
       )}
+    </div>
+  );
+}
+
+function BrowserFallback() {
+  return (
+    <div className="py-8">
+      <Skeleton className="h-9 w-full max-w-2xl rounded-lg" />
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-32 rounded-xl" />
+        ))}
+      </div>
     </div>
   );
 }

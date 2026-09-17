@@ -31,7 +31,7 @@ export function CountrySelect({
   function select(slug: string) {
     setOpen(false);
     setQuery("");
-    router.push(`/${slug}`);
+    router.push(`/${slug}/personality`);
   }
 
   return (

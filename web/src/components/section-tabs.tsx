@@ -3,8 +3,8 @@ import { cn } from "cn";
 
 export function SectionTabs({ countrySlug, active }: { countrySlug: string; active: "overview" | "personality" }) {
   const tabs = [
-    { key: "overview" as const, label: "Overview", href: `/${countrySlug}` },
     { key: "personality" as const, label: "Personality", href: `/${countrySlug}/personality` },
+    { key: "overview" as const, label: "Overview", href: `/${countrySlug}` },
   ];
 
   return (

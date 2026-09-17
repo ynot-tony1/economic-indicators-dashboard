@@ -49,7 +49,7 @@ export default async function IndicatorPage({ params }: PageProps<"/[country]/[i
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <Link
-        href={`/${country}#${meta.category}`}
+        href={`/${country}?category=${meta.category}`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" aria-hidden /> Back to {meta.countryName}

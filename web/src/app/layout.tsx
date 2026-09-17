@@ -18,11 +18,11 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Economic Indicators Dashboard",
-    template: "%s · Economic Indicators",
+    default: "Market Personalities",
+    template: "%s · Market Personalities",
   },
   description:
-    "Nightly-refreshed economic indicators for the US, UK, Japan, France, Germany, Ireland, Kenya, South Africa, Italy, Zimbabwe, Australia, and Singapore, sourced from TradingEconomics.",
+    "Nightly-refreshed economic indicators and market personalities for 179 countries, sourced from TradingEconomics.",
 };
 
 export const viewport = {
@@ -43,9 +43,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-6">
             <Link href="/" className="flex items-center gap-2">
               <span className="flex size-6 items-center justify-center rounded-md bg-foreground text-[11px] font-bold text-background">
-                EI
+                MP
               </span>
-              <span className="text-sm font-semibold tracking-tight">Economic Indicators</span>
+              <span className="text-sm font-semibold tracking-tight">Market Personalities</span>
             </Link>
             <a
               href="https://tradingeconomics.com/indicators"
