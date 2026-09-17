@@ -25,6 +25,8 @@ import psycopg
 import requests
 from bs4 import BeautifulSoup
 
+from countries_extra import EXTRA_COUNTRIES
+
 BASE_URL = "https://tradingeconomics.com"
 USER_AGENT = (
     "economic-indicators-dashboard/1.0 "
@@ -33,7 +35,7 @@ USER_AGENT = (
 REQUEST_DELAY_SECONDS = 3
 CATEGORY_SKIP = {"overview"}  # duplicates rows already covered by other tabs
 
-COUNTRIES = [
+ORIGINAL_COUNTRIES = [
     {"code": "US", "slug": "united-states"},
     {"code": "GB", "slug": "united-kingdom"},
     {"code": "JP", "slug": "japan"},
@@ -46,6 +48,13 @@ COUNTRIES = [
     {"code": "ZW", "slug": "zimbabwe"},
     {"code": "AU", "slug": "australia"},
     {"code": "SG", "slug": "singapore"},
+]
+
+# Full tracked set: the original 12 plus every other country/territory
+# TradingEconomics publishes an /indicators page for (see countries_extra.py -
+# slugs verified live via verify_slugs.py, not guessed).
+COUNTRIES = ORIGINAL_COUNTRIES + [
+    {"code": code, "slug": slug} for _name, slug, code, _flag in EXTRA_COUNTRIES
 ]
 
 MONTH_ABBR = {

@@ -1,58 +1,67 @@
 """
 Nightly "Market Personality" generator.
 
-Two-step pipeline, both using Claude Sonnet 5:
-  1. Trait scoring: for each of 5 bipolar personality traits, score all 12
-     tracked countries against each other (1-5, grounded in real scraped
-     numbers) in a single call per trait.
-  2. Persona synthesis: for each country, weave its 5 trait scores into an
-     archetype title + short character sketch, in a single call per country.
+Two modes:
+  - LLM mode (ANTHROPIC_API_KEY set): Claude Sonnet 5 scores each trait for
+    all tracked countries relative to each other, then synthesizes an
+    archetype + narrative per country. Best prose quality.
+  - Deterministic mode (no key): percentile-ranks every country against the
+    whole tracked set on real, currency-comparable indicators (percent
+    figures, or GDP in USD) - no LLM needed, works at any scale, and every
+    number in the output is real. Automatically upgrades to LLM mode the
+    moment a key is added; deterministic rows are tagged model="deterministic-v1"
+    so it's obvious which rows are still waiting to be upgraded.
 
-See INSIGHT_CATEGORIES.md for the earlier "category scorecard" concept this
-superseded, and the "Market Personality" discussion in the conversation this
-was designed in for the trait framing.
+See INSIGHT_CATEGORIES.md for the trait design.
 
 Usage:
-    ANTHROPIC_API_KEY=... DATABASE_URL=... python insights.py
-    python insights.py --dry-run   # print without DB writes (needs DATABASE_URL to fetch data)
+    DATABASE_URL=... python insights.py                       # deterministic
+    ANTHROPIC_API_KEY=... DATABASE_URL=... python insights.py  # LLM-enhanced
+    python insights.py --dry-run                                # print only
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 
-import anthropic
 import psycopg
 
-MODEL = "claude-sonnet-5"
+try:
+    import anthropic
+except ImportError:
+    anthropic = None
+
+LLM_MODEL = "claude-sonnet-5"
+DETERMINISTIC_MODEL = "deterministic-v1"
 
 # Score 5 = pole_high, 1 = pole_low. Pole wording lives here, not the DB, so
-# it stays fixed night over night regardless of what the model returns.
+# it stays fixed run over run. `metrics` are the ONLY indicators fed into the
+# deterministic composite - each must be a percent (or otherwise currency-
+# comparable) figure so ranking works honestly across any set of countries,
+# however many currencies are involved. `direction` says which raw direction
+# is "good" (maps toward pole_high).
 TRAITS = [
     {
         "slug": "assertiveness",
         "name": "Assertiveness",
         "pole_low": "Reserved",
         "pole_high": "Assertive",
-        "question": "How dominant is this country's banking and monetary system?",
-        "indicators": [
-            "Interest Rate",
-            "Money Supply M1",
-            "Central Bank Balance Sheet",
-            "Foreign Exchange Reserves",
-        ],
+        "question": "How dominant is this country's economy on the world stage?",
+        "metrics": [("GDP", "higher")],
+        "extra_display": ["Interest Rate"],
     },
     {
         "slug": "composure",
         "name": "Composure",
         "pole_low": "Anxious",
         "pole_high": "Composed",
-        "question": "How much is daily life squeezing people right now? "
-        "(score HIGH/Composed when inflation and unemployment are LOW; score LOW/Anxious when they are HIGH)",
-        "indicators": ["Inflation Rate", "Unemployment Rate"],
+        "question": "How much is daily life squeezing people right now?",
+        "metrics": [("Inflation Rate", "lower"), ("Unemployment Rate", "lower")],
+        "extra_display": [],
     },
     {
         "slug": "drive",
@@ -60,16 +69,17 @@ TRAITS = [
         "pole_low": "Sluggish",
         "pole_high": "Ambitious",
         "question": "Is this economy accelerating or stalling?",
-        "indicators": ["GDP Annual Growth Rate", "GDP Growth Rate"],
+        "metrics": [("GDP Annual Growth Rate", "higher")],
+        "extra_display": ["GDP Growth Rate"],
     },
     {
         "slug": "discipline",
         "name": "Discipline",
         "pole_low": "Reckless",
         "pole_high": "Disciplined",
-        "question": "How much room does this government have before debt becomes a problem? "
-        "(score HIGH/Disciplined for low debt-to-GDP and a controlled budget; score LOW/Reckless for the opposite)",
-        "indicators": ["Government Debt to GDP", "Government Budget"],
+        "question": "How much room does this government have before debt becomes a problem?",
+        "metrics": [("Government Debt to GDP", "lower"), ("Government Budget", "higher")],
+        "extra_display": [],
     },
     {
         "slug": "independence",
@@ -77,9 +87,25 @@ TRAITS = [
         "pole_low": "Dependent",
         "pole_high": "Self-Reliant",
         "question": "Is this country a net lender or net borrower to the rest of the world?",
-        "indicators": ["Balance of Trade", "Current Account to GDP", "External Debt"],
+        "metrics": [("Current Account to GDP", "higher")],
+        "extra_display": ["Balance of Trade", "External Debt"],
     },
 ]
+
+# Phrase banks for the deterministic archetype title. Picked deterministically
+# per country (hash-seeded) so it's stable run to run, not random.
+ARCHETYPE_WORDS = {
+    ("assertiveness", "high"): ["Powerhouse", "Heavyweight", "Titan", "Giant"],
+    ("assertiveness", "low"): ["Underdog", "Minnow", "Lightweight"],
+    ("composure", "high"): ["Composed", "Calm", "Steady", "Unshaken"],
+    ("composure", "low"): ["Anxious", "Strained", "Uneasy"],
+    ("drive", "high"): ["Ambitious", "Surging", "Fast-Mover", "Dynamo"],
+    ("drive", "low"): ["Sluggish", "Stalling", "Idle"],
+    ("discipline", "high"): ["Disciplined", "Prudent", "Careful", "Frugal"],
+    ("discipline", "low"): ["Reckless", "Free-Spending", "Overextended"],
+    ("independence", "high"): ["Self-Reliant", "Independent", "Self-Sufficient"],
+    ("independence", "low"): ["Dependent", "Import-Hungry", "Reliant"],
+}
 
 TRAIT_RESPONSE_SCHEMA = {
     "type": "object",
@@ -113,8 +139,13 @@ PERSONA_RESPONSE_SCHEMA = {
 }
 
 
+def stable_seed(*parts: str) -> int:
+    digest = hashlib.sha256("|".join(parts).encode()).hexdigest()
+    return int(digest[:8], 16)
+
+
 def fetch_country_data(cur, indicator_names: list[str]) -> dict[str, dict]:
-    """Latest snapshot value for each named indicator, per country."""
+    """Latest snapshot value for each named indicator, per country (all tracked)."""
     cur.execute(
         """
         SELECT c.code, c.name, i.name AS indicator_name, i.unit, s.last_value
@@ -134,10 +165,129 @@ def fetch_country_data(cur, indicator_names: list[str]) -> dict[str, dict]:
     )
     by_country: dict[str, dict] = {}
     for code, name, indicator_name, unit, last_value in cur.fetchall():
-        entry = by_country.setdefault(code, {"name": name, "values": {}})
+        entry = by_country.setdefault(code, {"name": name, "values": {}, "raw": {}})
+        entry["raw"][indicator_name] = last_value
         value = f"{last_value} {unit}".strip() if last_value is not None else "no data"
         entry["values"][indicator_name] = value
     return by_country
+
+
+# ---------------------------------------------------------------------------
+# Deterministic mode
+# ---------------------------------------------------------------------------
+
+
+def percentile_rank(values: dict[str, float]) -> dict[str, float]:
+    """0 (worst) .. 1 (best) rank among the given {code: float} values."""
+    if not values:
+        return {}
+    ordered = sorted(values.items(), key=lambda kv: kv[1])
+    n = len(ordered)
+    if n == 1:
+        return {ordered[0][0]: 0.5}
+    return {code: i / (n - 1) for i, (code, _) in enumerate(ordered)}
+
+
+def score_from_percentile(p: float) -> int:
+    if p < 0.2:
+        return 1
+    if p < 0.4:
+        return 2
+    if p < 0.6:
+        return 3
+    if p < 0.8:
+        return 4
+    return 5
+
+
+def deterministic_trait_scores(trait: dict, by_country: dict[str, dict]) -> list[dict]:
+    # Per sub-metric, compute a goodness-percentile (0 worst .. 1 best) per country.
+    metric_percentiles: list[dict[str, float]] = []
+    for metric_name, direction in trait["metrics"]:
+        raw: dict[str, float] = {}
+        for code, entry in by_country.items():
+            v = entry["raw"].get(metric_name)
+            if v is None:
+                continue
+            try:
+                raw[code] = float(v)
+            except (TypeError, ValueError):
+                continue
+        if not raw:
+            continue
+        ranked = percentile_rank(raw)
+        if direction == "lower":
+            ranked = {code: 1 - p for code, p in ranked.items()}
+        metric_percentiles.append(ranked)
+
+    composite: dict[str, float] = {}
+    for code in by_country:
+        available = [mp[code] for mp in metric_percentiles if code in mp]
+        if available:
+            composite[code] = sum(available) / len(available)
+
+    results = []
+    total = len(by_country)
+    for code, p in composite.items():
+        score = score_from_percentile(p)
+        entry = by_country[code]
+        primary_metric = trait["metrics"][0][0]
+        primary_value = entry["values"].get(primary_metric, "no data")
+
+        if score == 5:
+            phrasing = f"Ranks near the top of all {total} countries tracked here on {primary_metric.lower()} ({primary_value})."
+        elif score == 4:
+            phrasing = f"Sits in the upper tier of the {total} tracked countries on {primary_metric.lower()} ({primary_value})."
+        elif score == 3:
+            phrasing = f"Lands in the middle of the pack among {total} tracked countries on {primary_metric.lower()} ({primary_value})."
+        elif score == 2:
+            phrasing = f"Sits in the lower tier of the {total} tracked countries on {primary_metric.lower()} ({primary_value})."
+        else:
+            phrasing = f"Ranks near the bottom of all {total} countries tracked here on {primary_metric.lower()} ({primary_value})."
+
+        results.append({"country_code": code, "score": score, "summary": phrasing})
+    return results
+
+
+def build_deterministic_persona(country_name: str, code: str, traits_for_country: list[dict]) -> dict:
+    ranked_by_extremity = sorted(traits_for_country, key=lambda t: abs(t["score"] - 3), reverse=True)
+    top_two = ranked_by_extremity[:2]
+
+    words = []
+    for t in top_two:
+        direction = "high" if t["score"] >= 4 else "low" if t["score"] <= 2 else None
+        if direction is None:
+            continue
+        bank = ARCHETYPE_WORDS[(t["slug"], direction)]
+        idx = stable_seed(code, t["slug"]) % len(bank)
+        words.append(bank[idx])
+
+    if not words:
+        title = "The Balanced Economy"
+    elif len(words) == 1:
+        title = f"The {words[0]}"
+    else:
+        title = f"The {words[0]} {words[1]}"
+
+    if len(top_two) >= 2:
+        narrative = (
+            f"{country_name} is best defined by two things: its {top_two[0]['name'].lower()} "
+            f"({top_two[0]['summary']}) and its {top_two[1]['name'].lower()} "
+            f"({top_two[1]['summary']}). Across the other traits tracked here, it lands closer "
+            f"to the middle of the pack."
+        )
+    else:
+        narrative = (
+            f"{country_name} doesn't stand out strongly in either direction on any single trait "
+            f"tracked here - a genuinely middle-of-the-pack economy across the board."
+        )
+
+    return {"archetype_title": title, "narrative": narrative}
+
+
+# ---------------------------------------------------------------------------
+# LLM mode
+# ---------------------------------------------------------------------------
 
 
 def build_trait_prompt(trait: dict, by_country: dict[str, dict]) -> str:
@@ -169,11 +319,11 @@ score cautiously based on what's available.
 Return a score and summary for every one of the {len(by_country)} countries listed above."""
 
 
-def generate_trait_scores(client: anthropic.Anthropic, trait: dict, by_country: dict[str, dict]) -> list[dict]:
+def generate_trait_scores(client, trait: dict, by_country: dict[str, dict]) -> list[dict]:
     prompt = build_trait_prompt(trait, by_country)
     response = client.messages.create(
-        model=MODEL,
-        max_tokens=4096,
+        model=LLM_MODEL,
+        max_tokens=8192,
         output_config={"effort": "medium", "format": {"type": "json_schema", "schema": TRAIT_RESPONSE_SCHEMA}},
         messages=[{"role": "user", "content": prompt}],
     )
@@ -202,10 +352,10 @@ Write:
    for a non-technical reader."""
 
 
-def generate_persona(client: anthropic.Anthropic, country_name: str, traits_for_country: list[dict]) -> dict:
+def generate_persona(client, country_name: str, traits_for_country: list[dict]) -> dict:
     prompt = build_persona_prompt(country_name, traits_for_country)
     response = client.messages.create(
-        model=MODEL,
+        model=LLM_MODEL,
         max_tokens=1024,
         output_config={"effort": "medium", "format": {"type": "json_schema", "schema": PERSONA_RESPONSE_SCHEMA}},
         messages=[{"role": "user", "content": prompt}],
@@ -214,31 +364,38 @@ def generate_persona(client: anthropic.Anthropic, country_name: str, traits_for_
     return json.loads(text)
 
 
-def run(dry_run: bool = False) -> int:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("ERROR: ANTHROPIC_API_KEY is not set", file=sys.stderr)
-        return 1
+# ---------------------------------------------------------------------------
+# Shared driver
+# ---------------------------------------------------------------------------
 
+
+def run(dry_run: bool = False) -> int:
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         print("ERROR: DATABASE_URL is not set", file=sys.stderr)
         return 1
 
-    conn = psycopg.connect(database_url, autocommit=False)
-    client = anthropic.Anthropic(api_key=api_key)
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    use_llm = bool(api_key) and anthropic is not None
+    model_tag = LLM_MODEL if use_llm else DETERMINISTIC_MODEL
+    print(f"Mode: {'LLM (' + LLM_MODEL + ')' if use_llm else 'deterministic (no ANTHROPIC_API_KEY set)'}")
 
-    # Step 1: score every trait for every country
-    # country_code -> [{slug, name, pole_low, pole_high, score, summary}, ...]
+    conn = psycopg.connect(database_url, autocommit=False)
+    client = anthropic.Anthropic(api_key=api_key) if use_llm else None
+
     traits_by_country: dict[str, list[dict]] = {}
     names_by_code: dict[str, str] = {}
 
     for trait in TRAITS:
         print(f"Scoring trait: {trait['name']} ...")
+        indicator_names = [m for m, _ in trait["metrics"]] + trait["extra_display"]
         with conn.cursor() as cur:
-            by_country = fetch_country_data(cur, trait["indicators"])
+            by_country = fetch_country_data(cur, indicator_names)
 
-        scores = generate_trait_scores(client, trait, by_country)
+        if use_llm:
+            scores = generate_trait_scores(client, trait, by_country)
+        else:
+            scores = deterministic_trait_scores(trait, by_country)
         print(f"  got {len(scores)} country scores")
 
         for row in scores:
@@ -257,7 +414,7 @@ def run(dry_run: bool = False) -> int:
 
         if dry_run:
             for row in scores[:3]:
-                print(f"  sample: {row['country_code']} = {row['score']} — {row['summary']}")
+                print(f"  sample: {row['country_code']} = {row['score']} - {row['summary']}")
             continue
 
         with conn.cursor() as cur:
@@ -277,21 +434,23 @@ def run(dry_run: bool = False) -> int:
                         "trait": trait["slug"],
                         "score": row["score"],
                         "summary": row["summary"],
-                        "model": MODEL,
+                        "model": model_tag,
                         "country_code": row["country_code"],
                     },
                 )
         conn.commit()
         print(f"  wrote {len(scores)} scores for {trait['slug']}")
 
-    # Step 2: synthesize a persona per country from its 5 trait scores
     print("Synthesizing personas ...")
     for code, traits_for_country in traits_by_country.items():
         if len(traits_for_country) < len(TRAITS):
             print(f"  skipping {code}: only {len(traits_for_country)}/{len(TRAITS)} traits scored")
             continue
 
-        persona = generate_persona(client, names_by_code[code], traits_for_country)
+        if use_llm:
+            persona = generate_persona(client, names_by_code[code], traits_for_country)
+        else:
+            persona = build_deterministic_persona(names_by_code[code], code, traits_for_country)
         print(f"  {code}: {persona['archetype_title']}")
 
         if dry_run:
@@ -312,7 +471,7 @@ def run(dry_run: bool = False) -> int:
                 {
                     "archetype_title": persona["archetype_title"],
                     "narrative": persona["narrative"],
-                    "model": MODEL,
+                    "model": model_tag,
                     "country_code": code,
                 },
             )

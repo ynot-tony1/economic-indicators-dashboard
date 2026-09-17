@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCountries, getCountryBySlug, getLatestIndicators } from "@/db/queries";
 import { isDbConfigured } from "@/db/client";
-import { CountryNav } from "@/components/country-nav";
+import { CountrySelect } from "@/components/country-select";
 import { SectionTabs } from "@/components/section-tabs";
 import { CategoryQuickNav } from "@/components/category-quick-nav";
 import { IndicatorCard } from "@/components/indicator-card";
@@ -12,7 +12,10 @@ import { formatScrapedAt } from "@/lib/format";
 
 export const revalidate = 3600;
 
-const KNOWN_COUNTRIES = [
+// Only the original "featured" 12 are pre-rendered at build time (keeps
+// builds fast with 179 tracked countries) - every other country still works,
+// it just renders on first request and is then cached via ISR (revalidate above).
+const FEATURED_COUNTRIES = [
   "united-states",
   "united-kingdom",
   "japan",
@@ -28,7 +31,7 @@ const KNOWN_COUNTRIES = [
 ];
 
 export function generateStaticParams() {
-  return KNOWN_COUNTRIES.map((country) => ({ country }));
+  return FEATURED_COUNTRIES.map((country) => ({ country }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/[country]">): Promise<Metadata> {
@@ -85,7 +88,9 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
               )}
             </div>
           </div>
-          <CountryNav countries={countries} activeSlug={country} />
+          <div className="w-full sm:w-64">
+            <CountrySelect countries={countries} activeSlug={country} />
+          </div>
         </div>
         <SectionTabs countrySlug={country} active="overview" />
       </div>

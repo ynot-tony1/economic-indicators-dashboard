@@ -15,7 +15,9 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 179 tracked countries at a polite ~3s delay between requests takes a
+    # while on its own; generous headroom for the personality step too.
+    timeout-minutes: 60
     steps:
       - name: Check it's actually midnight in Europe/London
         id: check
