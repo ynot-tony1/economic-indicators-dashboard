@@ -101,9 +101,34 @@ User asked to add Italy, Zimbabwe, Australia, and Singapore (site now tracks 12 
 - Also added `.claude/` to `.gitignore` — the harness had written a `scheduled_tasks.lock` file into the repo while a background task was in flight; caught before it was committed.
 - Rebuilt (16 static routes now), verified all 4 new country pages + the BST string in production, deployed.
 
+## Market Personality feature (2026-09-17)
+
+User wanted a qualitative, non-technical-friendly layer on top of the raw indicators — a 1-5 score "wrapped in a question" with grounded narrative text. Iterated through a few framings in conversation before landing here:
+1. First pass: 15 generic composite-indicator ideas (ratios of existing scraped fields) — user wanted something more semantically interpretable than raw ratios.
+2. Second pass: 5 independent "category scorecards" (Power of Financial Institutions, Cost-of-Living Squeeze, Growth Momentum, Fiscal Resilience, Trade Position), each with its own 1-5 scale — built this partway (`country_insights` table, `scraper/insights.py` v1) then user said stop, hadn't decided which one, and only wanted one to start.
+3. Final framing (from a forwarded message thread): **"Market Personality"** — reframe the same 5 categories as bipolar personality traits on a single country, then synthesize all 5 into one archetype + narrative, like a personality-test result. This is what got built. The user confirmed they wanted the full thing built at this point, not just one trait.
+
+**Model**: explicitly downgraded from the claude-api skill's Opus-4.8 default to **Claude Sonnet 5** (`claude-sonnet-5`) — user asked "can it not be built without opus" (cost concern); this task (comparing 12 countries' numbers, writing a grounded one-liner) doesn't need Opus-tier reasoning, and Sonnet 5 is $3/$15 vs Opus's $5/$25 per MTok. Confirmed via `AskUserQuestion`.
+
+**Design**:
+- 5 bipolar traits, each mapped to real indicators confirmed present for all-or-nearly-all 12 countries (checked live against the DB, not assumed): Assertiveness (Reserved↔Assertive), Composure (Anxious↔Composed), Drive (Sluggish↔Ambitious), Discipline (Reckless↔Disciplined), Independence (Dependent↔Self-Reliant). Score 5 always = the "positive/high" pole, kept consistent for UI rendering.
+- Two-step generation (`scraper/insights.py`): (1) one Sonnet call per trait, scoring **all 12 tracked countries against each other in the same call** — this matters, since a 1-5 score only means something relative to the peer set, not in isolation — using structured outputs (`output_config.format` json_schema) for reliable parsing; (2) one Sonnet call per country synthesizing its 5 trait scores into an archetype title + 2-3 sentence narrative, explicitly prompted to "find the through-line" rather than restate each trait. 17 calls/night total, cheap.
+- Pole labels (`Reserved`/`Assertive` etc.) are fixed in code (`scraper/insights.py` TRAITS, mirrored in `web/src/lib/traits.ts` TRAIT_META) — the model only returns a score + summary, never invents label wording, so the UI vocabulary stays stable night over night.
+- New tables: `country_traits` (one row per country×trait, latest only via upsert), `country_personas` (one row per country, latest only). Applied to the live CockroachDB (additive, `CREATE TABLE IF NOT EXISTS`).
+- New UI: a second "Personality" tab per country (`/[country]/personality`, `SectionTabs` component added to both pages) with a custom-SVG radar chart (`RadarChart` — 5 axes, interactive hover/click per vertex showing that trait's grounded reasoning, country accent color, follows the same hand-rolled-SVG approach as `LineChart` rather than a charting library) plus a text `TraitList` fallback below (satisfies the dataviz skill's "always have a table/text alternative" rule) and the archetype title + narrative up top.
+- The web app itself never calls Anthropic — only the Python nightly job does (in GitHub Actions), so `ANTHROPIC_API_KEY` only needs to be a **GitHub secret**, not a Vercel env var.
+- Wired into `.github/workflows/scrape.yml` as a step after the scraper (`insights.py`), timeout bumped 10→20 min to cover the extra 17 sequential API calls.
+- Verified: `next build` passes (28 routes incl. 12 new `/personality` pages), local `next dev` shows the correct "not generated yet" empty state (tables exist but no data yet — waiting on the user's Anthropic API key), deployed to production and confirmed live.
+
+**Not yet done** — waiting on the user to provide an `ANTHROPIC_API_KEY`:
+- Set it as a GitHub Actions secret (`gh secret set ANTHROPIC_API_KEY`)
+- Run `scraper/insights.py` once manually to seed real data (same pattern as the original scraper seeding)
+- Verify real archetypes/traits render correctly end-to-end
+
 ## Remaining / future work
 
-- Nothing blocking — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
+- Nothing blocking on the core dashboard — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
+- Market Personality feature is fully built but has **no data yet** — blocked on the user supplying `ANTHROPIC_API_KEY` (see above).
 - No dark-mode toggle UI built (not requested) — dark mode follows OS `prefers-color-scheme` automatically via the existing shadcn CSS variable setup.
 - `next.config.ts` does not have Cache Components (`cacheComponents: true`) enabled — using the standard/previous caching model, so pages use plain `async` Server Components with `export const revalidate` (1hr) for ISR rather than `use cache` + Suspense-wrapped params.
 - Dashboard cards show TE's own Last/Previous/Highest/Lowest rather than a sparkline (would need N+1 history queries with little payoff on day one). Once a few weeks of nightly history accumulate, revisit whether a lightweight sparkline on cards is worth adding.
