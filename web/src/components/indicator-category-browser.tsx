@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { IndicatorCard } from "@/components/indicator-card";
 import { categoryLabel } from "@/lib/categories";
 import type { LatestIndicatorRow } from "@/db/queries";
@@ -20,23 +20,32 @@ export function IndicatorCategoryBrowser({
   categories: string[];
   counts: Record<string, number>;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const requested = searchParams.get("category");
   const fallback = categories.includes(DEFAULT_CATEGORY) ? DEFAULT_CATEGORY : (categories[0] ?? ALL);
-  const active = requested && (requested === ALL || categories.includes(requested)) ? requested : fallback;
+  const [active, setActive] = useState(fallback);
+
+  // Deep links (e.g. the indicator detail page's "Back to X" link) pass a
+  // `?category=` param. Read it client-side only, after mount, so the
+  // default view still renders synchronously in the server/static HTML
+  // instead of bailing out to a client-only Suspense fallback.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("category");
+    if (requested && (requested === ALL || categories.includes(requested))) {
+      setActive(requested);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function selectCategory(category: string) {
-    const params = new URLSearchParams(searchParams.toString());
+    setActive(category);
+    const params = new URLSearchParams(window.location.search);
     if (category === fallback) {
       params.delete("category");
     } else {
       params.set("category", category);
     }
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    window.history.replaceState(null, "", url);
   }
 
   const shownCategories = active === ALL ? categories : [active];

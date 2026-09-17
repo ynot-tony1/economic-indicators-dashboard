@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getCountries, getCountryBySlug, getLatestIndicators } from "@/db/queries";
 import { isDbConfigured } from "@/db/client";
@@ -7,7 +6,6 @@ import { CountrySelect } from "@/components/country-select";
 import { SectionTabs } from "@/components/section-tabs";
 import { IndicatorCategoryBrowser } from "@/components/indicator-category-browser";
 import { DbNotConfigured, EmptyState } from "@/components/state-messages";
-import { Skeleton } from "@/components/ui/skeleton";
 import { sortCategories } from "@/lib/categories";
 import { formatScrapedAt } from "@/lib/format";
 
@@ -99,23 +97,8 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
       {rows.length === 0 ? (
         <EmptyState />
       ) : (
-        <Suspense fallback={<BrowserFallback />}>
-          <IndicatorCategoryBrowser countrySlug={country} rows={rows} categories={categories} counts={counts} />
-        </Suspense>
+        <IndicatorCategoryBrowser countrySlug={country} rows={rows} categories={categories} counts={counts} />
       )}
-    </div>
-  );
-}
-
-function BrowserFallback() {
-  return (
-    <div className="py-8">
-      <Skeleton className="h-9 w-full max-w-2xl rounded-lg" />
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 rounded-xl" />
-        ))}
-      </div>
     </div>
   );
 }
