@@ -249,9 +249,18 @@ def deterministic_trait_scores(trait: dict, by_country: dict[str, dict]) -> list
     return results
 
 
+def join_words(words: list[str]) -> str:
+    if len(words) == 1:
+        return words[0]
+    if len(words) == 2:
+        return f"{words[0]} and {words[1]}"
+    return f"{', '.join(words[:-1])}, and {words[-1]}"
+
+
 def build_deterministic_persona(country_name: str, code: str, traits_for_country: list[dict]) -> dict:
     ranked_by_extremity = sorted(traits_for_country, key=lambda t: abs(t["score"] - 3), reverse=True)
     top_two = ranked_by_extremity[:2]
+    rest = ranked_by_extremity[2:]
 
     words = []
     for t in top_two:
@@ -269,18 +278,33 @@ def build_deterministic_persona(country_name: str, code: str, traits_for_country
     else:
         title = f"The {words[0]} {words[1]}"
 
-    if len(top_two) >= 2:
-        narrative = (
-            f"{country_name} is best defined by two things: its {top_two[0]['name'].lower()} "
-            f"({top_two[0]['summary']}) and its {top_two[1]['name'].lower()} "
-            f"({top_two[1]['summary']}). Across the other traits tracked here, it lands closer "
-            f"to the middle of the pack."
-        )
-    else:
+    if len(top_two) < 2:
         narrative = (
             f"{country_name} doesn't stand out strongly in either direction on any single trait "
             f"tracked here - a genuinely middle-of-the-pack economy across the board."
         )
+        return {"archetype_title": title, "narrative": narrative}
+
+    narrative = (
+        f"{country_name} is best defined by two things: its {top_two[0]['name'].lower()} "
+        f"({top_two[0]['summary']}) and its {top_two[1]['name'].lower()} "
+        f"({top_two[1]['summary']})."
+    )
+
+    # With only 5 score buckets, it's common for more than two traits to tie for the most
+    # extreme score - don't claim those tied traits are "middle of the pack" when they aren't.
+    cutoff = abs(top_two[1]["score"] - 3)
+    also_extreme = [t for t in rest if cutoff > 0 and abs(t["score"] - 3) == cutoff]
+    middling = [t for t in rest if t not in also_extreme]
+
+    if also_extreme:
+        names = join_words([t["name"] for t in also_extreme])
+        verb = "is" if len(also_extreme) == 1 else "are"
+        narrative += f" {names} {verb} just as extreme here, so this isn't a one-off."
+    if middling:
+        names = join_words([t["name"] for t in middling])
+        verb = "lands" if len(middling) == 1 else "land"
+        narrative += f" {names} {verb} closer to the middle of the pack."
 
     return {"archetype_title": title, "narrative": narrative}
 

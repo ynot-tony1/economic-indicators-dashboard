@@ -160,6 +160,26 @@ Three requested UI changes, plus one bug found and fixed while verifying them in
   - Verified fix with `.next/server/app/united-states.html` (the actual static output file) directly, not just a curl of the live site: 25 `data-slot="card"` matches, confirming real prerendered content. Re-confirmed against production post-deploy.
   - **Lesson**: `next dev` and a real `next build`/production deploy can differ meaningfully for anything gated behind `useSearchParams()` + Suspense — verify data-dependent client components against an actual production (or at least `next build && next start`) deployment, not just dev, before considering a feature done.
 
+## Full 179-country scrape + Market Personality generation completed (2026-09-17)
+
+- Background scrape finished cleanly: **13,388 indicator rows across all 179 countries**, no failures.
+- Ran `scraper/insights.py` in deterministic mode (no API key) against the full live dataset:
+  - All 5 traits scored for the large majority of countries (161-177 countries per trait, out of 179 - the gap is countries missing that specific comparable metric, e.g. no reported Current Account to GDP).
+  - **157/179 countries got a full persona** (archetype title + narrative) - requires all 5 traits present. The remaining 22 have partial trait coverage (too few tracked indicators, typically small/data-sparse economies) and were deliberately skipped rather than synthesizing a persona from incomplete signal.
+  - Verified the existing UI already degrades gracefully for the partial case without any code changes needed: the persona/archetype box only renders `{persona && (...)}`, so a country with e.g. 3/5 traits (confirmed on Afghanistan: Assertiveness, Composure, Discipline present, Drive/Independence missing) still shows its radar chart and trait list, just without an archetype title - not an error state, not a blank page.
+- Rebuilt and redeployed to production. Spot-checked real generated content live: US "The Titan Overextended", Vietnam "The Giant Ambitious", Zambia "The Strained Ambitious", Afghanistan (partial traits only, no persona box, as expected).
+- Nightly GitHub Actions cron will now pick up all 179 countries for both the scrape and (once/if `ANTHROPIC_API_KEY` is ever added) the personality regeneration step - no further manual steps needed for this to stay current.
+
+## Bug fix: deterministic persona narrative misstated "middle of the pack" (2026-09-17)
+
+User flagged Ireland's persona ("The Titan Sluggish") for a closer look after noticing its GDP Annual Growth Rate (-0.4%) looked odd next to the assertiveness claim. Investigated end to end:
+
+- **Not a data bug.** Cross-checked the scraped value directly against the live TradingEconomics page (`tradingeconomics.com/ireland/gdp-growth-annual`): -0.4% for Q2 2026, previous -13.2%, matches exactly. This is real (Ireland's GDP annual growth is genuinely this volatile due to multinational profit-shifting distorting headline GDP) - not a scraper parsing error.
+- **Not a percentile-math bug either.** Verified by hand: Ireland's -0.4% sits at percentile 0.090 among the 168 countries with this metric (i.e. genuinely bottom ~9%), which correctly buckets to score 1 ("near the bottom") under `score_from_percentile`.
+- **Found a real bug in `build_deterministic_persona` (`scraper/insights.py`).** Ireland's actual trait scores are Assertiveness=5, Discipline=5, Independence=5, Drive=1, Composure=3 - four of five traits tied at the maximum extremity (`|score-3|=2`). The function picked only the first two (by `TRAITS` list order, an arbitrary tie-break, not significance) for the archetype title/narrative, then appended a hardcoded closing sentence claiming the *other* traits "land closer to the middle of the pack" - false for Discipline and Independence, which are just as extreme as the two that got named. Checked how common this is: **101 of 157 full-persona countries (64%)** have 3+ traits tied at the cutoff extremity, since quintile bucketing into only 5 scores makes ties common at scale - this wasn't an Ireland-only edge case.
+  - **Fix**: after picking the top two traits for the title (title stays 2 words by design), the narrative now separately checks the remaining three traits against the top two's extremity cutoff - any that tie get named explicitly ("Discipline and Independence are just as extreme here, so this isn't a one-off"), and only genuinely middling traits get the "closer to the middle of the pack" line. Added a `join_words()` helper for natural-language lists of 1-3 items.
+  - Verified against Ireland's exact real data before rerunning at scale; re-ran `insights.py` (deterministic mode) for all 179 countries, redeployed, confirmed the corrected narrative live in production.
+
 ## Remaining / future work
 
 - Nothing blocking on the core dashboard — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
