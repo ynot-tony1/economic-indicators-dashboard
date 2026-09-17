@@ -53,6 +53,9 @@ jobs:
 
       - name: Generate market personalities
         if: steps.check.outputs.skip != 'true'
+        # Soft-fails while ANTHROPIC_API_KEY isn't set yet, so a missing key here
+        # never marks the (more important) scraper step above as broken.
+        continue-on-error: true
         working-directory: scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
