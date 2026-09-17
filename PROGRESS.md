@@ -125,10 +125,17 @@ User wanted a qualitative, non-technical-friendly layer on top of the raw indica
 - Run `scraper/insights.py` once manually to seed real data (same pattern as the original scraper seeding)
 - Verify real archetypes/traits render correctly end-to-end
 
+## Market Personality: manual seed, no API key available (2026-09-17)
+
+User doesn't have an Anthropic API key — only a claude.ai subscription, which is billed separately from API access and can't authenticate an unattended script. Two different problems, handled differently:
+
+- **One-time seed (done):** rather than needing `insights.py` to call the API, the trait scoring and persona synthesis were performed directly in-session — pulled the real live indicator data for all 5 traits × 12 countries (`SELECT ... JOIN LATERAL` for latest snapshot per indicator, same query shape as `insights.py`), reasoned through genuinely comparative 1-5 scores across the 12-country set by hand (documented reasoning: e.g. Ireland's eye-catching current-account/budget numbers are noted as inflated by multinational profit-shifting rather than taken at face value; Japan's near-balanced budget vs. its 249%-of-GDP debt load; Zimbabwe's strong headline growth vs. its 30% interest rate signaling real instability — the kind of judgment call the "personality" framing exists for), wrote all 60 trait summaries + 12 archetype/narrative pairs, and inserted them directly via a one-off script (`web/seed-personalities.tmp.js`, deleted after running — not committed, this was a data-seeding action not a code change). Verified real content renders in both `next dev` and production for several countries (US "The Confident Spender", Singapore "The Disciplined Overachiever", Zimbabwe "The Volatile Comeback"). Redeployed so it's live immediately rather than waiting on the 1hr ISR revalidation window.
+- **Nightly automation (still blocked):** `insights.py` still requires a real `ANTHROPIC_API_KEY` to run unattended in GitHub Actions — there's no way around this for a headless cron job. Made the workflow step `continue-on-error: true` so a missing key never breaks the (more important) scraper step. The seeded data above will sit unchanged until either a key is provided or it's manually refreshed the same way again.
+
 ## Remaining / future work
 
 - Nothing blocking on the core dashboard — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
-- Market Personality feature is fully built but has **no data yet** — blocked on the user supplying `ANTHROPIC_API_KEY` (see above).
+- Market Personality has real seeded data for all 12 countries (see above) but **will not update on its own** until `ANTHROPIC_API_KEY` is added as a GitHub Actions secret — the nightly `insights.py` step currently soft-fails every night with no key present.
 - No dark-mode toggle UI built (not requested) — dark mode follows OS `prefers-color-scheme` automatically via the existing shadcn CSS variable setup.
 - `next.config.ts` does not have Cache Components (`cacheComponents: true`) enabled — using the standard/previous caching model, so pages use plain `async` Server Components with `export const revalidate` (1hr) for ISR rather than `use cache` + Suspense-wrapped params.
 - Dashboard cards show TE's own Last/Previous/Highest/Lowest rather than a sparkline (would need N+1 history queries with little payoff on day one). Once a few weeks of nightly history accumulate, revisit whether a lightweight sparkline on cards is worth adding.
