@@ -14,3 +14,7 @@ scraper/venv/
 
 # Claude Code harness state
 .claude/
+
+# GCP deploy helpers
+gcp/.bin/
+gcp/.last-tag
