@@ -23,6 +23,11 @@ jobs:
     # 179 tracked countries at a polite ~3s delay between requests takes a
     # while on its own; generous headroom for the personality step too.
     timeout-minutes: 90
+    env:
+      # libpq's sslmode=verify-full looks for ~/.postgresql/root.crt by default,
+      # which the runner doesn't have; point it at the system CA bundle so
+      # certificate verification stays fully on.
+      PGSSLROOTCERT: /etc/ssl/certs/ca-certificates.crt
     steps:
       - uses: actions/checkout@v4
 
