@@ -1,62 +1,50 @@
 name: Nightly indicator scrape
 
-# GitHub Actions cron is UTC-only and has no DST awareness, but we want this to
-# run at midnight *Europe/London* time year-round (BST in summer, GMT in
-# winter). We schedule both UTC times that midnight London can fall on, then
-# use a guard step to skip whichever firing doesn't actually land at local
-# midnight — so this self-corrects across the clock change with no manual
-# updates twice a year.
+# One scheduled run per day at 23:00 UTC (midnight BST in summer, 11pm GMT in
+# winter). There used to be a second cron plus a guard step that only let the
+# run through if it started at exactly 00:xx Europe/London - but GitHub starts
+# scheduled workflows late when it's busy (often by 1-4 hours), so the guard
+# skipped *every* run and reported success. A daily run that's sometimes late
+# is far better than one that silently never happens. (The Google Cloud
+# deployment uses Cloud Scheduler, which is time-zone aware and fires on time.)
 on:
   schedule:
-    - cron: "0 0 * * *" # 00:00 UTC -> midnight GMT (winter)
-    - cron: "0 23 * * *" # 23:00 UTC -> midnight BST (summer, previous UTC day)
+    - cron: "0 23 * * *"
   workflow_dispatch: {}
+
+# Never let two scrapes overlap (e.g. a manual run during the scheduled one).
+concurrency:
+  group: nightly-scrape
+  cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     # 179 tracked countries at a polite ~3s delay between requests takes a
     # while on its own; generous headroom for the personality step too.
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
-      - name: Check it's actually midnight in Europe/London
-        id: check
-        run: |
-          HOUR=$(TZ=Europe/London date +%H)
-          echo "Local Europe/London hour: $HOUR"
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HOUR" != "00" ]; then
-            echo "Not local midnight yet (this is the other DST cron firing) — skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v4
-        if: steps.check.outputs.skip != 'true'
 
       - uses: actions/setup-python@v5
-        if: steps.check.outputs.skip != 'true'
         with:
           python-version: "3.12"
           cache: "pip"
           cache-dependency-path: scraper/requirements.txt
 
       - name: Install dependencies
-        if: steps.check.outputs.skip != 'true'
         working-directory: scraper
         run: pip install -r requirements.txt
 
       - name: Run scraper
-        if: steps.check.outputs.skip != 'true'
         working-directory: scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scrape.py
 
       - name: Generate market personalities
-        if: steps.check.outputs.skip != 'true'
-        # Soft-fails while ANTHROPIC_API_KEY isn't set yet, so a missing key here
-        # never marks the (more important) scraper step above as broken.
+        # Deterministic scoring needs no API key; allowed to fail without
+        # marking the (more important) scrape above as broken.
         continue-on-error: true
         working-directory: scraper
         env:
