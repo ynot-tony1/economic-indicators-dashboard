@@ -8,6 +8,8 @@
 #   ./gcp/deploy.sh deploy     deploy web (Cloud Run service) + pipeline (Cloud Run Job)
 #   ./gcp/deploy.sh schedule   Cloud Scheduler trigger for the nightly pipeline
 #   ./gcp/deploy.sh run-job    run the pipeline now (scrape -> personalities -> BigQuery)
+#   ./gcp/deploy.sh cost-guard budget -> Pub/Sub -> Cloud Run service that stops Cloud SQL
+#                              when spend reaches the budget (needs BILLING_ACCOUNT)
 #   ./gcp/deploy.sh all        infra, build, deploy, schedule (migrate is run separately, once)
 #
 # Every step is safe to re-run: resources are created only if missing.
@@ -36,6 +38,9 @@ PROXY_VERSION="v2.25.4"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GCLOUD="${GCLOUD:-gcloud}"
+# docker push authenticates via gcloud's credential helper, which must be on PATH.
+PATH="$(dirname "$(command -v "$GCLOUD")"):${PATH}"
+export PATH
 IMAGE_BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}"
 CONN_NAME="${PROJECT_ID}:${REGION}:${INSTANCE}"
 SA_WEB="mp-web@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -142,7 +147,7 @@ with_proxy() {
   fi
   local proxy_log
   proxy_log="$(mktemp)"
-  "$bin" --port "$PROXY_PORT" "$CONN_NAME" >"$proxy_log" 2>&1 &
+  "$bin" --gcloud-auth --port "$PROXY_PORT" "$CONN_NAME" >"$proxy_log" 2>&1 &
   local proxy_pid=$!
   for _ in $(seq 1 30); do
     grep -q "ready for new connections" "$proxy_log" && break
@@ -182,7 +187,11 @@ build() {
     local secret_file
     secret_file="$(mktemp)"
     if [ "$DB_MODE" = cloudsql ]; then local_db_url >"$secret_file"; else build_db_url >"$secret_file"; fi
-    DOCKER_BUILDKIT=1 docker build --network host \
+    # Host networking only in cloudsql mode, to reach the Auth Proxy on
+    # localhost; otherwise the default network (reliable DNS for the build).
+    local net=()
+    [ "$DB_MODE" = cloudsql ] && net=(--network host)
+    DOCKER_BUILDKIT=1 docker build "${net[@]}" \
       --secret "id=database_url,src=${secret_file}" \
       -t "${IMAGE_BASE}/web:${tag}" -t "${IMAGE_BASE}/web:latest" "${ROOT}/web"
     rm -f "$secret_file"
@@ -240,6 +249,48 @@ schedule() {
   fi
 }
 
+cost_guard() {
+  : "${BILLING_ACCOUNT:?set BILLING_ACCOUNT (gcloud billing accounts list)}"
+  local sa_guard="mp-cost-guard@${PROJECT_ID}.iam.gserviceaccount.com"
+  local sa_push="mp-pubsub-push@${PROJECT_ID}.iam.gserviceaccount.com"
+  local topic="budget-alerts"
+
+  log "Cost guard: budget alerts -> Pub/Sub -> Cloud Run -> stop Cloud SQL"
+  g services enable pubsub.googleapis.com billingbudgets.googleapis.com
+  ensure_sa mp-cost-guard "Stops Cloud SQL when the budget is spent"
+  ensure_sa mp-pubsub-push "Pub/Sub push identity for the cost guard"
+  grant "serviceAccount:${sa_guard}" roles/cloudsql.editor
+
+  g auth configure-docker "${REGION}-docker.pkg.dev" >/dev/null
+  docker build -t "${IMAGE_BASE}/cost-guard:latest" "${ROOT}/gcp/cost_guard"
+  docker push "${IMAGE_BASE}/cost-guard:latest"
+  g run deploy mp-cost-guard --region "$REGION" \
+    --image "${IMAGE_BASE}/cost-guard:latest" \
+    --service-account "$sa_guard" \
+    --set-env-vars "PROJECT_ID=${PROJECT_ID},SQL_INSTANCE=${INSTANCE}" \
+    --no-allow-unauthenticated --cpu 1 --memory 256Mi --max-instances 1
+  g run services add-iam-policy-binding mp-cost-guard --region "$REGION" \
+    --member "serviceAccount:${sa_push}" --role roles/run.invoker >/dev/null
+
+  g pubsub topics describe "$topic" >/dev/null 2>&1 || g pubsub topics create "$topic"
+  # Google's budget system publishes as this identity.
+  g pubsub topics add-iam-policy-binding "$topic" \
+    --member "serviceAccount:billing-budget-alert@system.gserviceaccount.com" \
+    --role roles/pubsub.publisher >/dev/null
+  local url
+  url="$(g run services describe mp-cost-guard --region "$REGION" --format 'value(status.url)')"
+  g pubsub subscriptions describe mp-cost-guard-push >/dev/null 2>&1 ||
+    g pubsub subscriptions create mp-cost-guard-push --topic "$topic" \
+      --push-endpoint "$url" --push-auth-service-account "$sa_push" --ack-deadline 60
+
+  local budget
+  budget="$("$GCLOUD" billing budgets list --billing-account "$BILLING_ACCOUNT" \
+    --filter "displayName='Market Personalities safety net'" --format 'value(name)')"
+  "$GCLOUD" billing budgets update "$budget" \
+    --notifications-rule-pubsub-topic "projects/${PROJECT_ID}/topics/${topic}" >/dev/null
+  echo "Cost guard wired to budget ${budget}"
+}
+
 run_job() {
   log "Running pipeline now"
   g run jobs execute "$PIPELINE_JOB" --region "$REGION" --wait
@@ -252,6 +303,7 @@ case "${1:-}" in
   deploy) deploy ;;
   schedule) schedule ;;
   run-job) run_job ;;
+  cost-guard) cost_guard ;;
   all) infra && build && deploy && schedule ;;
   *) sed -n '2,20p' "$0"; exit 1 ;;
 esac
