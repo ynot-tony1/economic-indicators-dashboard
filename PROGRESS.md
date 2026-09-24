@@ -194,6 +194,19 @@ Moved the app onto GCP (project `marketpersonalities`, region `europe-west2`), f
 - `DB_MODE=cockroach` (the script's default) deploys the same stack with no Cloud SQL, keeping CockroachDB's free tier as the database — the zero-cost fallback if Cloud SQL is stopped or deleted.
 - The original Vercel + CockroachDB + GitHub Actions deployment is left running in parallel.
 
+## Incident: the GitHub Actions scrape had silently never run (found 2026-09-24)
+
+The Vercel/CockroachDB site's data hadn't changed since 17 Sept, while every nightly GitHub Actions run showed green. Two stacked bugs, the first hiding the second:
+
+1. **Guard skipped every run.** The workflow scheduled two crons and a guard step that only proceeded if the job *started* at 00:xx Europe/London (to handle BST/GMT). GitHub starts scheduled workflows late under load — the runs were firing at 02:00–04:45 London time — so the guard skipped every night and exited successfully (6–8 s runs). The only real scrapes since 17 Sept were manual.
+2. **Hidden behind it: TLS failure.** Once the guard was removed, the first real run failed in 20 s: libpq with `sslmode=verify-full` looks for `~/.postgresql/root.crt`, which the runner doesn't have. Same issue already fixed in the GCP pipeline container. Fixed by setting `PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt` (verification stays on).
+
+Fixes: single `0 23 * * *` cron, no guard, `concurrency` lock so runs can't overlap, 90-min timeout, CA bundle env var. Catch-up run triggered manually.
+
+**Also fixed: Vercel git builds had been failing** ("Couldn't find any `pages` or `app` directory") because the Vercel project's Root Directory was the repo root, not `web/`. Production kept serving the last successful CLI deploy, so the site stayed up, but every push produced a failed deployment. Set `rootDirectory: web` (`vercel project update --root-directory web`); the next push built and deployed in 42 s.
+
+**Lessons:** a job that "succeeds" by doing nothing is worse than one that fails loudly — a data-freshness check (alert if the newest snapshot is > 26 h old) would have caught this on day two. And don't depend on a scheduler's start time for correctness.
+
 ## Remaining / future work
 
 - Nothing blocking on the core dashboard — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
