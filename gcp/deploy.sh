@@ -12,10 +12,18 @@
 #
 # Every step is safe to re-run: resources are created only if missing.
 # Required: PROJECT_ID. Optional: REGION (default europe-west2 / London).
+#
+# DB_MODE picks where the operational database lives:
+#   cockroach (default) - keep the existing CockroachDB Serverless database (free
+#                         tier); needs COCKROACH_DATABASE_URL on first `infra`.
+#                         Everything else runs on GCP free-tier services.
+#   cloudsql            - provision Cloud SQL for Postgres (~GBP 7-8/month, the
+#                         only paid component) and run `migrate` to move the data.
 set -euo pipefail
 
 : "${PROJECT_ID:?set PROJECT_ID}"
 REGION="${REGION:-europe-west2}"
+DB_MODE="${DB_MODE:-cockroach}"
 INSTANCE="${INSTANCE:-market-personalities-db}"
 DB_NAME="market_personalities"
 DB_USER="app"
@@ -69,12 +77,35 @@ infra() {
   ensure_sa mp-web "Market Personalities web (Cloud Run service)"
   ensure_sa mp-pipeline "Market Personalities nightly pipeline (Cloud Run Job)"
   ensure_sa mp-scheduler "Market Personalities scheduler trigger"
-  for role in roles/cloudsql.client roles/secretmanager.secretAccessor; do
+  local roles=(roles/secretmanager.secretAccessor)
+  [ "$DB_MODE" = cloudsql ] && roles+=(roles/cloudsql.client)
+  for role in "${roles[@]}"; do
     grant "serviceAccount:${SA_WEB}" "$role"
     grant "serviceAccount:${SA_PIPELINE}" "$role"
   done
   grant "serviceAccount:${SA_PIPELINE}" roles/bigquery.dataEditor
   grant "serviceAccount:${SA_PIPELINE}" roles/bigquery.jobUser
+
+  log "Artifact Registry cleanup: keep only the 2 newest images per package"
+  local policy
+  policy="$(mktemp)"
+  cat >"$policy" <<'JSON'
+[
+  {"name": "keep-newest-2", "action": {"type": "Keep"}, "mostRecentVersions": {"keepCount": 2}},
+  {"name": "delete-rest", "action": {"type": "Delete"}, "condition": {"tagState": "any"}}
+]
+JSON
+  g artifacts repositories set-cleanup-policies "$REPO" --location "$REGION" --policy "$policy" --no-dry-run >/dev/null
+  rm -f "$policy"
+
+  if [ "$DB_MODE" = cockroach ]; then
+    log "Database: CockroachDB Serverless (no Cloud SQL provisioned)"
+    if ! g secrets describe database-url >/dev/null 2>&1; then
+      : "${COCKROACH_DATABASE_URL:?set COCKROACH_DATABASE_URL for the first infra run}"
+      ensure_secret database-url "$COCKROACH_DATABASE_URL"
+    fi
+    return
+  fi
 
   log "Cloud SQL (Postgres 16, smallest shared-core tier)"
   if ! g sql instances describe "$INSTANCE" >/dev/null 2>&1; then
@@ -125,6 +156,8 @@ with_proxy() {
   return "$status"
 }
 
+build_db_url() { g secrets versions access latest --secret database-url; }
+
 local_db_url() { echo "postgresql://${DB_USER}:$(db_password)@127.0.0.1:${PROXY_PORT}/${DB_NAME}"; }
 
 migrate() {
@@ -148,13 +181,13 @@ build() {
   _build_web() {
     local secret_file
     secret_file="$(mktemp)"
-    local_db_url >"$secret_file"
+    if [ "$DB_MODE" = cloudsql ]; then local_db_url >"$secret_file"; else build_db_url >"$secret_file"; fi
     DOCKER_BUILDKIT=1 docker build --network host \
       --secret "id=database_url,src=${secret_file}" \
       -t "${IMAGE_BASE}/web:${tag}" -t "${IMAGE_BASE}/web:latest" "${ROOT}/web"
     rm -f "$secret_file"
   }
-  with_proxy _build_web
+  if [ "$DB_MODE" = cloudsql ]; then with_proxy _build_web; else _build_web; fi
 
   docker push --all-tags "${IMAGE_BASE}/pipeline"
   docker push --all-tags "${IMAGE_BASE}/web"
@@ -165,11 +198,17 @@ deploy() {
   local tag
   tag="$(cat "${ROOT}/gcp/.last-tag" 2>/dev/null || echo latest)"
 
+  local web_sql=() job_sql=()
+  if [ "$DB_MODE" = cloudsql ]; then
+    web_sql=(--add-cloudsql-instances "$CONN_NAME")
+    job_sql=(--set-cloudsql-instances "$CONN_NAME")
+  fi
+
   log "Deploying web -> Cloud Run service ${WEB_SERVICE}"
   g run deploy "$WEB_SERVICE" --region "$REGION" \
     --image "${IMAGE_BASE}/web:${tag}" \
     --service-account "$SA_WEB" \
-    --add-cloudsql-instances "$CONN_NAME" \
+    "${web_sql[@]}" \
     --set-secrets DATABASE_URL=database-url:latest \
     --allow-unauthenticated \
     --cpu 1 --memory 512Mi --min-instances 0 --max-instances 3 --concurrency 80
@@ -178,7 +217,7 @@ deploy() {
   g run jobs deploy "$PIPELINE_JOB" --region "$REGION" \
     --image "${IMAGE_BASE}/pipeline:${tag}" \
     --service-account "$SA_PIPELINE" \
-    --set-cloudsql-instances "$CONN_NAME" \
+    "${job_sql[@]}" \
     --set-secrets DATABASE_URL=database-url:latest \
     --set-env-vars "GCP_PROJECT=${PROJECT_ID},BQ_LOCATION=${REGION}" \
     --cpu 1 --memory 1Gi --task-timeout 3600 --max-retries 1
@@ -214,5 +253,5 @@ case "${1:-}" in
   schedule) schedule ;;
   run-job) run_job ;;
   all) infra && build && deploy && schedule ;;
-  *) sed -n '2,13p' "$0"; exit 1 ;;
+  *) sed -n '2,20p' "$0"; exit 1 ;;
 esac
