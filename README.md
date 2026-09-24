@@ -1,18 +1,39 @@
-# Economic Indicators Dashboard
+# Market Personalities
 
-Nightly-refreshed dashboard of economic indicators for the United States, United
-Kingdom, Japan, France, Germany, Ireland, Kenya, South Africa, Italy, Zimbabwe,
-Australia, and Singapore, sourced from
-[TradingEconomics](https://tradingeconomics.com/indicators).
+Nightly-refreshed economic indicators and "market personalities" for 179
+countries, sourced from [TradingEconomics](https://tradingeconomics.com/indicators).
 
-## Architecture
+Live on Google Cloud: https://mp-web-853132539656.europe-west2.run.app
+(Original Vercel deployment: https://economic-indicator-comparison.vercel.app)
 
-- **`web/`** — Next.js 16 (App Router, TypeScript, Tailwind, shadcn/ui) dashboard, deployed on Vercel. Reads directly from CockroachDB via Drizzle ORM.
-- **`scraper/`** — Python scraper that parses the per-country indicator tables from TradingEconomics and writes snapshots to CockroachDB. Runs nightly via a GitHub Actions cron workflow (`.github/workflows/scrape.yml`), so scheduling/compute for the scrape lives on GitHub's infrastructure while the site itself lives on Vercel.
-- **`db/schema.sql`** — canonical schema (`countries`, `indicators`, `indicator_snapshots`), applied once against your CockroachDB cluster.
+## Architecture (Google Cloud)
 
-Every nightly run inserts one new snapshot row per indicator, so the dashboard's
-history charts build up over time starting from whenever the scraper first runs.
+- **`web/`** — Next.js 16 (App Router, TypeScript, Tailwind, shadcn/ui) in a
+  Docker container on **Cloud Run** (service `mp-web`). Reads from **Cloud SQL
+  for PostgreSQL** via Drizzle ORM over the Cloud SQL connector's unix socket
+  (IAM-authorised, no public IP allowlist). Featured pages are prerendered at
+  build time and refreshed hourly (ISR).
+- **`scraper/`** — the nightly pipeline, containerised as a **Cloud Run Job**
+  (`mp-pipeline`) triggered by **Cloud Scheduler** at 00:00 Europe/London:
+  1. `scrape.py` — scrape indicators → Cloud SQL
+  2. `insights.py` — percentile-rank traits and build personas → Cloud SQL
+  3. `export_bigquery.py` — load everything into **BigQuery** (dataset
+     `market_personalities`): current tables full-refresh, snapshots partitioned
+     by day and clustered by indicator, and a dated history partition of every
+     night's personalities (which Cloud SQL deliberately doesn't keep).
+- **`gcp/deploy.sh`** — scripted, idempotent infrastructure and deploys:
+  APIs, Artifact Registry (with a keep-2 cleanup policy), one service account
+  per workload with least-privilege roles, Cloud SQL, Secret Manager, Cloud
+  Run service + job, Cloud Scheduler, and the cost guard.
+- **`gcp/cost_guard/`** — GCP budgets only alert, so a £15 budget publishes to
+  Pub/Sub, and this Cloud Run service stops the Cloud SQL instance (the only
+  paid component) once spend reaches it.
+- **`gcp/migrate_cockroach_to_cloudsql.py`** — the one-off migration from the
+  original CockroachDB database (row counts verified table by table).
+- **`db/schema.sql`** — canonical schema, valid on both Postgres and CockroachDB.
+
+The original Vercel + CockroachDB + GitHub Actions deployment still runs in
+parallel (`.github/workflows/scrape.yml`), so both stay current.
 
 See `PROGRESS.md` for a running implementation log.
 
