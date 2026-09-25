@@ -50,3 +50,13 @@ export function formatScrapedAt(scrapedAt: string | Date): string {
     timeZoneName: "short",
   });
 }
+
+/** Snapshots are keyed on the Europe/London calendar day, so show the date only. */
+export function formatSnapshotDate(scrapedAt: string | Date): string {
+  return new Date(scrapedAt).toLocaleDateString("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}

@@ -7,7 +7,7 @@ import { SectionTabs } from "@/components/section-tabs";
 import { IndicatorCategoryBrowser } from "@/components/indicator-category-browser";
 import { DbNotConfigured, EmptyState } from "@/components/state-messages";
 import { sortCategories } from "@/lib/categories";
-import { formatScrapedAt } from "@/lib/format";
+import { formatSnapshotDate } from "@/lib/format";
 
 export const revalidate = 3600;
 
@@ -82,7 +82,7 @@ export default async function CountryPage({ params }: PageProps<"/[country]">) {
               {latestScrapedAt && (
                 <>
                   <span className="h-3 w-px bg-border" aria-hidden />
-                  <span>Updated {formatScrapedAt(latestScrapedAt)}</span>
+                  <span>Updated {formatSnapshotDate(latestScrapedAt)}</span>
                 </>
               )}
             </div>

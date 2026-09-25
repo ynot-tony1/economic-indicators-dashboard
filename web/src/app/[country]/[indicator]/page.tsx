@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { DbNotConfigured } from "@/components/state-messages";
 import { countryColor } from "@/lib/colors";
 import { categoryLabel } from "@/lib/categories";
-import { formatPeriod, formatScrapedAt, formatValue } from "@/lib/format";
+import { formatPeriod, formatSnapshotDate, formatValue } from "@/lib/format";
 
 export const revalidate = 3600;
 
@@ -104,7 +104,7 @@ export default async function IndicatorPage({ params }: PageProps<"/[country]/[i
         <LineChart points={points} color={color} unit={meta.unit} />
       </div>
 
-      {latest && <p className="mt-4 text-xs text-muted-foreground">Last scraped {formatScrapedAt(latest.scrapedAt)}</p>}
+      {latest && <p className="mt-4 text-xs text-muted-foreground">Last updated {formatSnapshotDate(latest.scrapedAt)}</p>}
     </div>
   );
 }

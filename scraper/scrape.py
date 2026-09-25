@@ -18,8 +18,9 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timezone
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
 
 import psycopg
 import requests
@@ -199,8 +200,23 @@ def insert_snapshot(cur, indicator_id: str, scraped_at: datetime, row: dict) -> 
     )
 
 
+LONDON = ZoneInfo("Europe/London")
+
+
+def snapshot_day(now: datetime) -> datetime:
+    """The snapshot key for a run: midnight (Europe/London) of the day it ran, in UTC.
+
+    Snapshots are unique per (indicator_id, scraped_at). Keying on the calendar
+    day rather than the exact start time means a retry or manual rerun on the
+    same day updates that day's snapshot instead of adding a second one - so
+    reruns are genuinely idempotent: one snapshot per indicator per day.
+    """
+    local_day = now.astimezone(LONDON).date()
+    return datetime.combine(local_day, dtime.min, tzinfo=LONDON).astimezone(timezone.utc)
+
+
 def run(dry_run: bool = False) -> int:
-    run_started_at = datetime.now(timezone.utc)
+    run_started_at = snapshot_day(datetime.now(timezone.utc))
     conn = None
     country_ids: dict[str, str] = {}
 

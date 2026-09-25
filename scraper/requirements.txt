@@ -3,3 +3,4 @@ beautifulsoup4==4.12.3
 psycopg[binary]==3.2.3
 anthropic==1.6.0
 google-cloud-bigquery==3.45.2
+tzdata==2026.4

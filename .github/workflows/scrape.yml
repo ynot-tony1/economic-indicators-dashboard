@@ -1,15 +1,19 @@
 name: Nightly indicator scrape
 
-# One scheduled run per day at 23:00 UTC (midnight BST in summer, 11pm GMT in
-# winter). There used to be a second cron plus a guard step that only let the
-# run through if it started at exactly 00:xx Europe/London - but GitHub starts
-# scheduled workflows late when it's busy (often by 1-4 hours), so the guard
-# skipped *every* run and reported success. A daily run that's sometimes late
-# is far better than one that silently never happens. (The Google Cloud
-# deployment uses Cloud Scheduler, which is time-zone aware and fires on time.)
+# One scheduled run per day at 01:30 UTC (01:30 GMT / 02:30 BST). Snapshots are
+# keyed on the Europe/London calendar day, so a run must land inside the day it
+# belongs to: 01:30 UTC does, in summer and winter, even when GitHub starts it
+# hours late (it often does under load). Retries and reruns on the same day
+# update that day's snapshot rather than adding another.
+#
+# History: there used to be two crons plus a guard that only proceeded if the
+# job *started* at 00:xx London time - GitHub's start delays made it skip every
+# run while reporting success. A daily run that's sometimes late is far better
+# than one that silently never happens. (The Google Cloud deployment uses Cloud
+# Scheduler, which is time-zone aware and fires on time.)
 on:
   schedule:
-    - cron: "0 23 * * *"
+    - cron: "30 1 * * *"
   workflow_dispatch: {}
 
 # Never let two scrapes overlap (e.g. a manual run during the scheduled one).
