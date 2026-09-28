@@ -13,7 +13,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY scrape.py insights.py countries_extra.py export_bigquery.py run_pipeline.sh ./
+COPY scrape.py insights.py countries_extra.py export_bigquery.py revalidate_site.py run_pipeline.sh ./
 RUN chmod +x run_pipeline.sh && useradd --create-home app
 USER app
 

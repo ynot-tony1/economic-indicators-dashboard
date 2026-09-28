@@ -60,3 +60,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python insights.py
+
+      - name: Refresh the website's cached pages
+        # Pages are ISR-cached and otherwise only regenerate on a visit after
+        # the hourly window; this makes the next visitor see tonight's data.
+        continue-on-error: true
+        working-directory: scraper
+        env:
+          SITE_URL: https://economic-indicator-comparison.vercel.app
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+        run: python revalidate_site.py

@@ -4,8 +4,7 @@ export const TRAIT_ORDER = ["assertiveness", "composure", "drive", "discipline",
 
 export type TraitSlug = (typeof TRAIT_ORDER)[number];
 
-// `short` is the compact label shown under each trait on the radar chart.
-export type TraitMetric = { name: string; short: string; direction: "higher" | "lower" };
+export type TraitMetric = { name: string; direction: "higher" | "lower" };
 
 // `metrics` mirrors each trait's `metrics` in scraper/insights.py: the only
 // indicators that feed the score, and which direction pushes toward poleHigh.
@@ -17,37 +16,37 @@ export const TRAIT_META: Record<
     name: "Assertiveness",
     poleLow: "Reserved",
     poleHigh: "Assertive",
-    metrics: [{ name: "GDP", short: "GDP", direction: "higher" }],
+    metrics: [{ name: "GDP", direction: "higher" }],
   },
   composure: {
     name: "Composure",
     poleLow: "Anxious",
     poleHigh: "Composed",
     metrics: [
-      { name: "Inflation Rate", short: "inflation", direction: "lower" },
-      { name: "Unemployment Rate", short: "unemployment", direction: "lower" },
+      { name: "Inflation Rate", direction: "lower" },
+      { name: "Unemployment Rate", direction: "lower" },
     ],
   },
   drive: {
     name: "Drive",
     poleLow: "Sluggish",
     poleHigh: "Ambitious",
-    metrics: [{ name: "GDP Annual Growth Rate", short: "GDP growth", direction: "higher" }],
+    metrics: [{ name: "GDP Annual Growth Rate", direction: "higher" }],
   },
   discipline: {
     name: "Discipline",
     poleLow: "Reckless",
     poleHigh: "Disciplined",
     metrics: [
-      { name: "Government Debt to GDP", short: "debt to GDP", direction: "lower" },
-      { name: "Government Budget", short: "budget", direction: "higher" },
+      { name: "Government Debt to GDP", direction: "lower" },
+      { name: "Government Budget", direction: "higher" },
     ],
   },
   independence: {
     name: "Independence",
     poleLow: "Dependent",
     poleHigh: "Self-Reliant",
-    metrics: [{ name: "Current Account to GDP", short: "current account", direction: "higher" }],
+    metrics: [{ name: "Current Account to GDP", direction: "higher" }],
   },
 };
 

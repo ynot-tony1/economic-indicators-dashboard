@@ -6,12 +6,12 @@ import { TRAIT_META } from "@/lib/traits";
 
 const SIZE = 320;
 const CENTER = SIZE / 2;
-const MAX_R = 108;
+const MAX_R = 118;
 const MIN_R = MAX_R * 0.18;
-const LABEL_R = MAX_R + 34;
+const LABEL_R = MAX_R + 20;
 // Side labels (e.g. "Independence") extend past the plot, so the canvas is
 // wider than it is tall; points are still computed in the SIZE x SIZE space.
-const PAD_X = 64;
+const PAD_X = 48;
 const VIEW_W = SIZE + PAD_X * 2;
 
 function pointFor(index: number, total: number, radius: number) {
@@ -46,7 +46,7 @@ export function RadarChart({
     <div className="relative">
       <svg
         viewBox={`${-PAD_X} 0 ${VIEW_W} ${SIZE}`}
-        className="w-full max-w-md mx-auto"
+        className="w-full max-w-lg mx-auto"
         style={{ "--series-light": color.light, "--series-dark": color.dark } as React.CSSProperties}
       >
         <style>{`
@@ -119,19 +119,6 @@ export function RadarChart({
               onClick={() => setActiveIndex(i === activeIndex ? null : i)}
             >
               {meta.name}
-              {meta.metrics.map((m, j) => (
-                <tspan
-                  key={m.name}
-                  x={labelPoint.x}
-                  dy={j === 0 ? 13 : 11}
-                  fontSize={9}
-                  fontWeight={400}
-                  fill="var(--viz-ink-muted)"
-                  opacity={0.8}
-                >
-                  {m.short}
-                </tspan>
-              ))}
             </text>
           );
         })}

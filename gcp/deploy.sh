@@ -103,6 +103,10 @@ JSON
   g artifacts repositories set-cleanup-policies "$REPO" --location "$REGION" --policy "$policy" --no-dry-run >/dev/null
   rm -f "$policy"
 
+  log "Site refresh secret (pipeline -> web /api/revalidate)"
+  g secrets describe revalidate-secret >/dev/null 2>&1 ||
+    ensure_secret revalidate-secret "$(openssl rand -hex 32)"
+
   if [ "$DB_MODE" = cockroach ]; then
     log "Database: CockroachDB Serverless (no Cloud SQL provisioned)"
     if ! g secrets describe database-url >/dev/null 2>&1; then
@@ -218,20 +222,23 @@ deploy() {
     --image "${IMAGE_BASE}/web:${tag}" \
     --service-account "$SA_WEB" \
     "${web_sql[@]}" \
-    --set-secrets DATABASE_URL=database-url:latest \
+    --set-secrets DATABASE_URL=database-url:latest,REVALIDATE_SECRET=revalidate-secret:latest \
     --allow-unauthenticated \
     --cpu 1 --memory 512Mi --min-instances 0 --max-instances 3 --concurrency 80
+
+  local site_url
+  site_url="$(g run services describe "$WEB_SERVICE" --region "$REGION" --format 'value(status.url)')"
 
   log "Deploying pipeline -> Cloud Run Job ${PIPELINE_JOB}"
   g run jobs deploy "$PIPELINE_JOB" --region "$REGION" \
     --image "${IMAGE_BASE}/pipeline:${tag}" \
     --service-account "$SA_PIPELINE" \
     "${job_sql[@]}" \
-    --set-secrets DATABASE_URL=database-url:latest \
-    --set-env-vars "GCP_PROJECT=${PROJECT_ID},BQ_LOCATION=${REGION}" \
+    --set-secrets DATABASE_URL=database-url:latest,REVALIDATE_SECRET=revalidate-secret:latest \
+    --set-env-vars "GCP_PROJECT=${PROJECT_ID},BQ_LOCATION=${REGION},SITE_URL=${site_url}" \
     --cpu 1 --memory 1Gi --task-timeout 3600 --max-retries 1
 
-  g run services describe "$WEB_SERVICE" --region "$REGION" --format 'value(status.url)'
+  echo "$site_url"
 }
 
 schedule() {
