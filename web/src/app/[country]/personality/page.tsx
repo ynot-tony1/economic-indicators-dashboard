@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCountries, getCountryBySlug, getCountryPersonality } from "@/db/queries";
+import { getCountries, getCountryBySlug, getCountryPersonality, getLatestIndicators } from "@/db/queries";
 import { isDbConfigured } from "@/db/client";
 import { CountrySelect } from "@/components/country-select";
 import { SectionTabs } from "@/components/section-tabs";
@@ -47,10 +47,11 @@ export default async function PersonalityPage({ params }: PageProps<"/[country]/
     return <DbNotConfigured />;
   }
 
-  const [countries, activeCountry, personality] = await Promise.all([
+  const [countries, activeCountry, personality, indicators] = await Promise.all([
     getCountries(),
     getCountryBySlug(country),
     getCountryPersonality(country),
+    getLatestIndicators(country),
   ]);
 
   if (!activeCountry) notFound();
@@ -58,6 +59,7 @@ export default async function PersonalityPage({ params }: PageProps<"/[country]/
   const color = countryColor(country);
   const traits = personality?.traits ?? [];
   const persona = personality?.persona ?? null;
+  const indicatorsByName = new Map(indicators.map((row) => [row.name, row]));
 
   return (
     <div className="mx-auto max-w-6xl px-6">
@@ -109,7 +111,7 @@ export default async function PersonalityPage({ params }: PageProps<"/[country]/
 
           <div>
             <h2 className="mb-4 text-sm font-medium text-muted-foreground">Traits</h2>
-            <TraitList traits={traits} color={color} />
+            <TraitList traits={traits} color={color} countrySlug={country} indicatorsByName={indicatorsByName} />
           </div>
         </div>
       )}

@@ -43,7 +43,8 @@ DETERMINISTIC_MODEL = "deterministic-v1"
 # deterministic composite - each must be a percent (or otherwise currency-
 # comparable) figure so ranking works honestly across any set of countries,
 # however many currencies are involved. `direction` says which raw direction
-# is "good" (maps toward pole_high).
+# is "good" (maps toward pole_high). The web app lists these same metrics
+# under each trait (TRAIT_META in web/src/lib/traits.ts) - keep them in sync.
 TRAITS = [
     {
         "slug": "assertiveness",

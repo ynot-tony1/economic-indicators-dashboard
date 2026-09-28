@@ -1,12 +1,18 @@
-import type { CountryTraitRow } from "@/db/queries";
+import Link from "next/link";
+import type { CountryTraitRow, LatestIndicatorRow } from "@/db/queries";
+import { formatValue } from "@/lib/format";
 import { TRAIT_META } from "@/lib/traits";
 
 export function TraitList({
   traits,
   color,
+  countrySlug,
+  indicatorsByName,
 }: {
   traits: CountryTraitRow[];
   color: { light: string; dark: string };
+  countrySlug: string;
+  indicatorsByName: Map<string, LatestIndicatorRow>;
 }) {
   return (
     <ul className="space-y-4">
@@ -33,6 +39,26 @@ export function TraitList({
               <span>{meta.poleHigh}</span>
             </div>
             <p className="mt-1.5 text-sm text-muted-foreground">{t.summary}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground/80">
+              <span className="font-medium">Based on:</span>{" "}
+              {meta.metrics.map((m, i) => {
+                const row = indicatorsByName.get(m.name);
+                return (
+                  <span key={m.name}>
+                    {i > 0 && " · "}
+                    {row ? (
+                      <Link href={`/${countrySlug}/${row.slug}`} className="underline-offset-2 hover:underline">
+                        {m.name} {formatValue(row.lastValue, row.unit)}
+                      </Link>
+                    ) : (
+                      <span>{m.name} (no data, not used)</span>
+                    )}{" "}
+                    ({m.direction} = more {meta.poleHigh})
+                  </span>
+                );
+              })}
+              . Ranked against all tracked countries.
+            </p>
           </li>
         );
       })}

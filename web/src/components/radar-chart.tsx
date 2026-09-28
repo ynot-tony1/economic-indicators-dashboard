@@ -9,6 +9,10 @@ const CENTER = SIZE / 2;
 const MAX_R = 108;
 const MIN_R = MAX_R * 0.18;
 const LABEL_R = MAX_R + 34;
+// Side labels (e.g. "Independence") extend past the plot, so the canvas is
+// wider than it is tall; points are still computed in the SIZE x SIZE space.
+const PAD_X = 64;
+const VIEW_W = SIZE + PAD_X * 2;
 
 function pointFor(index: number, total: number, radius: number) {
   const angle = -Math.PI / 2 + (index / total) * 2 * Math.PI;
@@ -41,7 +45,7 @@ export function RadarChart({
   return (
     <div className="relative">
       <svg
-        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        viewBox={`${-PAD_X} 0 ${VIEW_W} ${SIZE}`}
         className="w-full max-w-md mx-auto"
         style={{ "--series-light": color.light, "--series-dark": color.dark } as React.CSSProperties}
       >
@@ -115,6 +119,19 @@ export function RadarChart({
               onClick={() => setActiveIndex(i === activeIndex ? null : i)}
             >
               {meta.name}
+              {meta.metrics.map((m, j) => (
+                <tspan
+                  key={m.name}
+                  x={labelPoint.x}
+                  dy={j === 0 ? 13 : 11}
+                  fontSize={9}
+                  fontWeight={400}
+                  fill="var(--viz-ink-muted)"
+                  opacity={0.8}
+                >
+                  {m.short}
+                </tspan>
+              ))}
             </text>
           );
         })}
@@ -124,7 +141,7 @@ export function RadarChart({
         <div
           className="pointer-events-none absolute w-48 -translate-x-1/2 rounded-md border bg-popover px-3 py-2 text-xs shadow-md"
           style={{
-            left: `${(activePoint.x / SIZE) * 100}%`,
+            left: `${((activePoint.x + PAD_X) / VIEW_W) * 100}%`,
             top: `${(activePoint.y / SIZE) * 100}%`,
             marginTop: activePoint.y > CENTER ? "12px" : "-88px",
           }}

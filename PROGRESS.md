@@ -207,6 +207,12 @@ Fixes: single `0 23 * * *` cron, no guard, `concurrency` lock so runs can't over
 
 **Lessons:** a job that "succeeds" by doing nothing is worse than one that fails loudly — a data-freshness check (alert if the newest snapshot is > 26 h old) would have caught this on day two. And don't depend on a scheduler's start time for correctness.
 
+## Trait footnotes, radar label clipping, and a stale-page scare (2026-09-28)
+
+- **"Based on" footnotes.** Each trait on the Personality tab now lists the exact indicators that feed its score, with that country's current value (linked to the indicator page), which direction pushes toward the high pole, and "(no data, not used)" when a country is missing one. The metrics live in `TRAIT_META` (`web/src/lib/traits.ts`), mirrored from `TRAITS` in `scraper/insights.py`. The radar chart also shows a short metric label under each trait name.
+- **Radar labels were clipped.** Side labels ("Independence", "Composure") are anchored outward from points near the edge of a 320-wide viewBox, so they ran off the canvas. The viewBox is now padded horizontally (the tooltip position maps through the same padding).
+- **"Updated 25 Sept" on 28 Sept was not a pipeline failure.** Both nightly pipelines (GitHub Actions → CockroachDB, Cloud Scheduler → Cloud SQL) had succeeded every night and the databases held 28 Sept snapshots. The pages are ISR with `revalidate = 3600`, which regenerates only when a request arrives after the window, and that first request is still served the stale copy. With little traffic, the cached pages were still the 25 Sept renders; the next requests showed 28 Sept. A future improvement is on-demand revalidation triggered by the pipeline after each load.
+
 ## Remaining / future work
 
 - Nothing blocking on the core dashboard — the site is live and the nightly scrape is scheduled. First automatic nightly run will happen at the next midnight Europe/London.
